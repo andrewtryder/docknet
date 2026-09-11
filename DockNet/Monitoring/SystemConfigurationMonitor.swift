@@ -11,6 +11,10 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
     private let queue: DispatchQueue
     private var dynamicStore: SCDynamicStore?
     private var isRunning: Bool = false
+    private var cachedDiscovery: ServiceOrderDiscovery.DiscoveryResult?
+    private var coalesceWorkItem: DispatchWorkItem?
+    private var lastDeliveredSnapshot: NetworkSnapshot?
+
     public let stateMachine: NetworkStateMachine
     public let linkSpeedDetector: any LinkSpeedDetecting
 
@@ -42,17 +46,24 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
     public func stop() {
         queue.async { [weak self] in
             guard let self = self, self.isRunning else { return }
+            self.coalesceWorkItem?.cancel()
+            self.coalesceWorkItem = nil
             if let store = self.dynamicStore {
                 SCDynamicStoreSetDispatchQueue(store, nil)
                 self.dynamicStore = nil
             }
+            self.cachedDiscovery = nil
             self.isRunning = false
         }
     }
 
     public func requestRefresh() {
         queue.async { [weak self] in
-            self?.triggerSnapshot()
+            guard let self = self else { return }
+            self.cachedDiscovery = nil
+            self.coalesceWorkItem?.cancel()
+            self.coalesceWorkItem = nil
+            self.triggerSnapshot()
         }
     }
 
@@ -101,12 +112,32 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
 
     private func handleStoreNotification(changedKeys: [String]) {
         Self.logger.debug("SCDynamicStore notified with keys: \(changedKeys)")
-        triggerSnapshot()
+
+        // Invalidate cached service discovery if service setup changed
+        if changedKeys.contains(where: { $0.hasPrefix("Setup:/") }) {
+            Self.logger.debug("Service setup key changed; invalidating discovery cache")
+            cachedDiscovery = nil
+        }
+
+        // Coalesce burst notifications over 35ms
+        coalesceWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.triggerSnapshot()
+        }
+        coalesceWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + .milliseconds(35), execute: workItem)
     }
 
     public func captureSnapshot() -> NetworkSnapshot {
-        // 1. Discover all configured wired Ethernet services and Wi-Fi service dynamically
-        let discovery = ServiceOrderDiscovery.discoverServices()
+        // 1. Discover configured services (cached until Setup keys change)
+        let discovery: ServiceOrderDiscovery.DiscoveryResult
+        if let cached = cachedDiscovery {
+            discovery = cached
+        } else {
+            let fresh = ServiceOrderDiscovery.discoverServices()
+            cachedDiscovery = fresh
+            discovery = fresh
+        }
 
         guard let store = dynamicStore else {
             let emptyWifi = NetworkInterfaceInfo(
@@ -176,8 +207,8 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             }
         }
 
-        // 5. Initial health evaluation to feed the PhysicalTransportResolver
-        let tempWiredStates = stateMachine.evaluateWiredInterfaces(
+        // 5. Single-pass health & link-speed evaluation
+        let evaluatedWiredStates = stateMachine.evaluateWiredInterfaces(
             from: rawWiredInfos,
             physicalPrimaryInterface: nil,
             linkSpeedDetector: linkSpeedDetector
@@ -187,17 +218,16 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
         let resolvedPhysicalTransport = PhysicalTransportResolver.resolve(
             systemPrimaryInterface: systemPrimaryInterface,
             systemPrimaryServiceName: primaryName,
-            wiredInterfaces: tempWiredStates,
+            wiredInterfaces: evaluatedWiredStates,
             wifi: wifiInfo,
             previousPhysicalPrimaryBSD: stateMachine.currentPhysicalPrimaryBSD
         )
 
-        // 7. Final wired evaluation stamping `isPrimary` on the active physical Ethernet adapter
-        let finalWiredStates = stateMachine.evaluateWiredInterfaces(
-            from: rawWiredInfos,
-            physicalPrimaryInterface: resolvedPhysicalTransport.bsdName,
-            linkSpeedDetector: linkSpeedDetector
-        )
+        // 7. Stamp isPrimary on the active physical Ethernet adapter without re-running evaluation or ioctl
+        let finalWiredStates = evaluatedWiredStates.map { state in
+            let isPrimary = (resolvedPhysicalTransport.kind == .ethernet && state.bsdName == resolvedPhysicalTransport.bsdName)
+            return state.withPrimary(isPrimary)
+        }
 
         return NetworkSnapshot(
             wiredInterfaces: finalWiredStates,
@@ -213,6 +243,11 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
 
     private func triggerSnapshot() {
         let snapshot = captureSnapshot()
+        if let last = lastDeliveredSnapshot, snapshot.isSemanticallyEqualTo(last) {
+            Self.logger.debug("Suppressing redundant snapshot broadcast (semantically identical)")
+            return
+        }
+        lastDeliveredSnapshot = snapshot
         onSnapshotUpdated?(snapshot)
     }
 

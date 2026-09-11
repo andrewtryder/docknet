@@ -47,7 +47,7 @@ jobs:
       - name: Run Unit Tests
         run: make test-unit
 
-      - name: Build Universal Release DMG
+      - name: Build Apple Silicon Release DMG
         run: |
           make release-build \
             VERSION="${{ steps.version.outputs.version }}" \
@@ -57,7 +57,7 @@ jobs:
         id: notes
         run: |
           cat << 'EOF' > release_notes.md
-          DockNet is currently distributed as an ad-hoc-signed, non-notarized open-source macOS application.
+          DockNet is currently distributed as an ad-hoc-signed, non-notarized open-source macOS application for Apple Silicon (arm64).
 
           macOS may block the first launch. If so, use **System Settings -> Privacy & Security -> Open Anyway**.
 
@@ -70,8 +70,8 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          DMG_PATH="dist/DockNet-${VERSION}-macOS-universal.dmg"
-          CHECKSUM_PATH="dist/DockNet-${VERSION}-macOS-universal.dmg.sha256"
+          DMG_PATH="dist/DockNet-${VERSION}-macOS-arm64.dmg"
+          CHECKSUM_PATH="dist/DockNet-${VERSION}-macOS-arm64.dmg.sha256"
 
           if [ ! -f "${DMG_PATH}" ] || [ ! -f "${CHECKSUM_PATH}" ]; then
             echo "ERROR: Release artifacts not found in dist/" >&2

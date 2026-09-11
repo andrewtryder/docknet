@@ -135,8 +135,10 @@ public final class NetworkStateMachine: @unchecked Sendable {
         primaryInterface: String? = nil,
         linkSpeedDetector: (any LinkSpeedDetecting)? = nil
     ) -> [WiredInterfaceState] {
+        let healthMapSnapshot: [String: EthernetHealthState]
         lock.lock()
-        defer { lock.unlock() }
+        healthMapSnapshot = _interfaceHealthMap
+        lock.unlock()
 
         let activePhysical = physicalPrimaryInterface ?? primaryInterface
 
@@ -144,7 +146,7 @@ public final class NetworkStateMachine: @unchecked Sendable {
 
         for iface in interfaces {
             let isPresent = iface.isHardwarePresent
-            let priorState = _interfaceHealthMap[iface.bsdName] ?? .cableDisconnected
+            let priorState = healthMapSnapshot[iface.bsdName] ?? .cableDisconnected
             let evaluatedHealth: EthernetHealthState
 
             if !iface.enabled {

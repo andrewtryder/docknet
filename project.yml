@@ -14,6 +14,7 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
     COMBINE_HIDPI_IMAGES: YES
+    ARCHS: arm64
 
 targets:
   DockNet:
@@ -45,8 +46,9 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        ARCHS: arm64
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "2"
 
   DockNetTests:
     type: bundle.unit-test
@@ -64,6 +66,7 @@ targets:
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
         GENERATE_INFOPLIST_FILE: YES
+        ARCHS: arm64
 
   DockNetUITests:
     type: bundle.ui-testing
@@ -81,6 +84,7 @@ targets:
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
         GENERATE_INFOPLIST_FILE: YES
+        ARCHS: arm64
 
 schemes:
   DockNet:

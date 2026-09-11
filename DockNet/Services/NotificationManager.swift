@@ -112,7 +112,7 @@ public final class NotificationManager: @unchecked Sendable {
     private let lock = NSLock()
     private var _stablePrimary: PrimaryConnection? = nil
     private var _pendingCandidate: PrimaryConnection? = nil
-    private var _pendingWorkItem: DispatchWorkItem? = nil
+    private var _debounceGeneration: UInt64 = 0
     private var _sequenceCounter: Int = 0
     private let debounceInterval: TimeInterval
     private let queue = DispatchQueue(label: "com.andrewtryder.docknet.notifications", qos: .utility)
@@ -182,12 +182,20 @@ public final class NotificationManager: @unchecked Sendable {
             return
         }
 
-        // 2. If the new snapshot matches the existing stable primary:
+        // 2. If notifications are disabled, keep stable primary updated without timers or debounce overhead
+        guard isPreferenceEnabled else {
+            _stablePrimary = currentPrimary
+            _debounceGeneration &+= 1
+            _pendingCandidate = nil
+            lock.unlock()
+            return
+        }
+
+        // 3. If the new snapshot matches the existing stable primary:
         if currentPrimary == stable {
-            if let pending = _pendingWorkItem {
+            if _pendingCandidate != nil {
                 // Cancel any pending transition back to a transient primary (A -> B -> A).
-                pending.cancel()
-                _pendingWorkItem = nil
+                _debounceGeneration &+= 1
                 _pendingCandidate = nil
                 Self.logger.info("Transition cancelled: primary returned to stable \(stable.bsdName, privacy: .public)")
             }
@@ -195,9 +203,8 @@ public final class NotificationManager: @unchecked Sendable {
             return
         }
 
-        // 3. New candidate differs from stable primary (A -> B or A -> B -> C)
-        _pendingWorkItem?.cancel()
-        _pendingWorkItem = nil
+        // 4. New candidate differs from stable primary (A -> B or A -> B -> C)
+        _debounceGeneration &+= 1
         _pendingCandidate = currentPrimary
 
         // If debounce is 0 (test mode), process immediately
@@ -214,25 +221,25 @@ public final class NotificationManager: @unchecked Sendable {
             return
         }
 
-        // 4. Schedule debounced transition
+        // 5. Schedule debounced transition using generation token
+        let generation = _debounceGeneration
         let candidate = currentPrimary
-        var workItem: DispatchWorkItem!
-        workItem = DispatchWorkItem { [weak self] in
+        lock.unlock()
+
+        queue.asyncAfter(deadline: .now() + debounceInterval) { [weak self] in
             guard let self = self else { return }
             self.lock.lock()
-            guard !workItem.isCancelled else {
+            guard self._debounceGeneration == generation else {
                 self.lock.unlock()
                 return
             }
             guard let from = self._stablePrimary, from != candidate else {
-                self._pendingWorkItem = nil
                 self._pendingCandidate = nil
                 self.lock.unlock()
                 return
             }
             self._stablePrimary = candidate
             self._pendingCandidate = nil
-            self._pendingWorkItem = nil
             self._sequenceCounter += 1
             let seq = self._sequenceCounter
             self.lock.unlock()
@@ -242,11 +249,6 @@ public final class NotificationManager: @unchecked Sendable {
                 await self.evaluateAndSend(transition: transition, sequence: seq)
             }
         }
-
-        _pendingWorkItem = workItem
-        lock.unlock()
-
-        queue.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
     }
 
     private func evaluateAndSend(transition: ConnectionTransition, sequence: Int) async {
@@ -282,8 +284,7 @@ public final class NotificationManager: @unchecked Sendable {
     public func resetState() {
         lock.lock()
         defer { lock.unlock() }
-        _pendingWorkItem?.cancel()
-        _pendingWorkItem = nil
+        _debounceGeneration &+= 1
         _pendingCandidate = nil
         _stablePrimary = nil
     }

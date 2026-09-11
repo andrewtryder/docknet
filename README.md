@@ -72,9 +72,10 @@ macOS handles the actual routing and failover. DockNet observes the result and m
 
 ### Downloading a release
 
-Download the latest pre-built universal DMG (`DockNet-<version>-macOS-universal.dmg`) and its SHA-256 checksum from [GitHub Releases](https://github.com/andrewtryder/docknet/releases).
+Download the latest pre-built Apple Silicon DMG (`DockNet-<version>-macOS-arm64.dmg`) and its SHA-256 checksum from [GitHub Releases](https://github.com/andrewtryder/docknet/releases).
 
 Release builds are:
+- **Apple Silicon (arm64)**
 - **ad-hoc signed**
 - **not Developer ID signed**
 - **not notarized by Apple**

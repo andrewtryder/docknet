@@ -51,6 +51,27 @@ public struct WiredInterfaceState: Equatable, Sendable, Identifiable {
         self.isHardwarePresent = isHardwarePresent
     }
 
+    /// Returns a copy of this state with an updated isPrimary flag.
+    public func withPrimary(_ isPrimary: Bool) -> WiredInterfaceState {
+        guard self.isPrimary != isPrimary else { return self }
+        return WiredInterfaceState(
+            serviceID: serviceID,
+            serviceName: serviceName,
+            bsdName: bsdName,
+            enabled: enabled,
+            serviceOrder: serviceOrder,
+            linkActive: linkActive,
+            ipv4Address: ipv4Address,
+            subnetMask: subnetMask,
+            gateway: gateway,
+            health: health,
+            isPreferred: isPreferred,
+            isPrimary: isPrimary,
+            linkSpeed: linkSpeed,
+            isHardwarePresent: isHardwarePresent
+        )
+    }
+
     /// Whether this interface has an active link and a valid non-169.254 IPv4 address with gateway
     public var isReady: Bool {
         health == .ready

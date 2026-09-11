@@ -19,7 +19,7 @@ all: build
 help:
 	@echo "DockNet Build Targets:"
 	@echo "  make build               - Build DockNet Debug configuration with xcodebuild"
-	@echo "  make release-build       - Build universal Release app, DMG, and checksum"
+	@echo "  make release-build       - Build Apple Silicon (arm64) Release app, DMG, and checksum"
 	@echo "  make test                - Run unit tests with xcodebuild (same as test-unit)"
 	@echo "  make test-unit           - Run pure unit tests (NetworkStateMachineTests)"
 	@echo "  make test-ui             - Run deterministic XCUITest suite (DockNetUITests)"

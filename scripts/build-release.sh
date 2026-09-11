@@ -2,22 +2,22 @@
 set -euo pipefail
 
 # DockNet Release Build & DMG Packaging Script
-# Produces an ad-hoc signed universal (arm64 + x86_64) macOS application and DMG.
+# Produces an ad-hoc signed Apple Silicon (arm64) macOS application and DMG.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 VERSION="${1:-${MARKETING_VERSION:-}}"
 if [ -z "${VERSION}" ]; then
-    # Attempt to derive from git tag or fallback to 1.0.0
-    VERSION="$(git describe --tags --exact-match 2>/dev/null || echo "1.0.0")"
+    # Attempt to derive from git tag or fallback to 2.0.0
+    VERSION="$(git describe --tags --exact-match 2>/dev/null || echo "2.0.0")"
 fi
 VERSION="${VERSION#v}" # Strip leading 'v' if present
 
-BUILD_NUMBER="${2:-${GITHUB_RUN_NUMBER:-${CURRENT_PROJECT_VERSION:-1}}}"
+BUILD_NUMBER="${2:-${GITHUB_RUN_NUMBER:-${CURRENT_PROJECT_VERSION:-2}}}"
 
 echo "=================================================="
-echo "Building DockNet Release"
+echo "Building DockNet Release (arm64)"
 echo "Version:      ${VERSION}"
 echo "Build Number: ${BUILD_NUMBER}"
 echo "Root:         ${ROOT_DIR}"
@@ -31,12 +31,12 @@ APP_PATH="${RELEASE_DIR}/DockNet.app"
 BINARY_PATH="${APP_PATH}/Contents/MacOS/DockNet"
 DIST_DIR="${ROOT_DIR}/dist"
 STAGING_DIR="${ROOT_DIR}/build/staging"
-DMG_NAME="DockNet-${VERSION}-macOS-universal.dmg"
+DMG_NAME="DockNet-${VERSION}-macOS-arm64.dmg"
 DMG_PATH="${DIST_DIR}/${DMG_NAME}"
 CHECKSUM_NAME="${DMG_NAME}.sha256"
 CHECKSUM_PATH="${DIST_DIR}/${CHECKSUM_NAME}"
 
-echo "--> Compiling Universal Release Binary (arm64 + x86_64)..."
+echo "--> Compiling Apple Silicon Release Binary (arm64)..."
 xcodebuild \
     -project DockNet.xcodeproj \
     -scheme DockNet \
@@ -44,7 +44,7 @@ xcodebuild \
     -destination 'platform=macOS' \
     -derivedDataPath "${DERIVED_DATA}" \
     ONLY_ACTIVE_ARCH=NO \
-    ARCHS="arm64 x86_64" \
+    ARCHS="arm64" \
     MARKETING_VERSION="${VERSION}" \
     CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
     build
@@ -54,7 +54,7 @@ if [ ! -d "${APP_PATH}" ]; then
     exit 1
 fi
 
-echo "--> Verifying Architectures with lipo..."
+echo "--> Verifying Architecture with lipo..."
 file "${BINARY_PATH}"
 LIPO_OUTPUT="$(lipo -info "${BINARY_PATH}")"
 echo "${LIPO_OUTPUT}"
@@ -64,12 +64,12 @@ if ! echo "${LIPO_OUTPUT}" | grep -q "arm64"; then
     exit 1
 fi
 
-if ! echo "${LIPO_OUTPUT}" | grep -q "x86_64"; then
-    echo "ERROR: x86_64 architecture missing from ${BINARY_PATH}" >&2
+if echo "${LIPO_OUTPUT}" | grep -q "x86_64"; then
+    echo "ERROR: x86_64 architecture unexpectedly present in ${BINARY_PATH}" >&2
     exit 1
 fi
 
-echo "--> Universal binary verified: arm64 and x86_64 present."
+echo "--> Apple Silicon binary verified: arm64 only."
 
 echo "--> Code Signing (Ad-hoc)..."
 echo "Signing: ad-hoc"

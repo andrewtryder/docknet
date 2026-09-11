@@ -63,6 +63,17 @@ public struct NetworkSnapshot: Equatable, Sendable {
         }
     }
 
+    /// Compares two snapshots for semantic equality, ignoring the capture timestamp.
+    public func isSemanticallyEqualTo(_ other: NetworkSnapshot) -> Bool {
+        return wiredInterfaces == other.wiredInterfaces &&
+            wifi == other.wifi &&
+            systemPrimaryInterface == other.systemPrimaryInterface &&
+            systemPrimaryServiceID == other.systemPrimaryServiceID &&
+            systemPrimaryServiceName == other.systemPrimaryServiceName &&
+            physicalTransport == other.physicalTransport &&
+            globalIPv4Router == other.globalIPv4Router
+    }
+
     /// The BSD name of the authoritative physical primary connection (e.g. "en6", "en0", or nil).
     public var physicalPrimaryInterface: String? {
         physicalTransport.bsdName

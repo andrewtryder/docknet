@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 /// Manages a single native About window instance for DockNet.
 @MainActor
@@ -21,8 +20,7 @@ public final class AboutWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        let aboutView = AboutView(urlOpener: urlOpener)
-        let hostingController = NSHostingController(rootView: aboutView)
+        let viewController = AboutViewController(urlOpener: urlOpener)
 
         let newWindow = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 360),
@@ -33,7 +31,7 @@ public final class AboutWindowController: NSObject, NSWindowDelegate {
 
         newWindow.center()
         newWindow.title = "About DockNet"
-        newWindow.contentViewController = hostingController
+        newWindow.contentViewController = viewController
         newWindow.isReleasedWhenClosed = false
         newWindow.delegate = self
         newWindow.setAccessibilityIdentifier("docknet.about.window")

@@ -4,11 +4,11 @@ import os
 
 /// Manages macOS Launch at Login via modern SMAppService (macOS 13.0+).
 @MainActor
-public final class LoginItemManager: ObservableObject {
+public final class LoginItemManager {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "LoginItemManager")
 
-    @Published public private(set) var isLaunchAtLoginEnabled: Bool = false
-    @Published public private(set) var statusDescription: String = "Disabled"
+    public private(set) var isLaunchAtLoginEnabled: Bool = false
+    public private(set) var statusDescription: String = "Disabled"
 
     private let service = SMAppService.mainApp
 

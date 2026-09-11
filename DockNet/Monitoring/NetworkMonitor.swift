@@ -7,7 +7,6 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NetworkMonitor")
 
     private let scMonitor: SystemConfigurationMonitor
-    private let pathMonitor: PathMonitor
     public let stateMachine: NetworkStateMachine
 
     private let lock = NSLock()
@@ -17,7 +16,6 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
     public init(stateMachine: NetworkStateMachine = NetworkStateMachine()) {
         self.stateMachine = stateMachine
         self.scMonitor = SystemConfigurationMonitor(stateMachine: stateMachine)
-        self.pathMonitor = PathMonitor()
 
         let emptyWifi = NetworkInterfaceInfo(bsdName: "en0", serviceName: "Wi-Fi", isLinkActive: false)
         self._currentSnapshot = NetworkSnapshot(wiredInterfaces: [], wifi: emptyWifi)
@@ -36,14 +34,6 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
             guard let self = self else { return }
             self.handleNewSnapshot(snapshot)
         }
-
-        pathMonitor.onPathUpdated = { [weak self] pathInfo in
-            guard let self = self else { return }
-            Self.logger.debug("PathMonitor observed reachability update: satisfied=\(pathInfo.isSatisfied)")
-            // NWPathMonitor provides supplementary reachability only and must not synthesize
-            // or overwrite systemPrimaryInterface. Request authoritative refresh from SCDynamicStore.
-            self.scMonitor.requestRefresh()
-        }
     }
 
     private func handleNewSnapshot(_ snapshot: NetworkSnapshot) {
@@ -58,13 +48,11 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
     public func startMonitoring() {
         Self.logger.info("Starting network monitoring")
         scMonitor.start()
-        pathMonitor.start()
     }
 
     public func stopMonitoring() {
         Self.logger.info("Stopping network monitoring")
         scMonitor.stop()
-        pathMonitor.stop()
     }
 
     public func refresh() {
