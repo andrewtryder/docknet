@@ -12,6 +12,7 @@
 		1713D79BF84C6DAFCD650235 /* PhysicalTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */; };
 		1BB54FCE33A8118B4589A4DD /* StatusViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61DF5558A50102034D217C31 /* StatusViewModel.swift */; };
 		27DBE06DF0038A62F758B659 /* DockNetLiveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7421293B8DC0C45786156BA /* DockNetLiveUITests.swift */; };
+		2A26A30CF83B676CFEC6BEE5 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 7367AED38E18A76EFD690D73 /* AppIcon.icns */; };
 		2EBE287EC14484AF2821554E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A97E5229A0D69FA138C31A7 /* Assets.xcassets */; };
 		3CB3AD2131824F97A629A981 /* MockNetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCFB1546B989D230C5DDD7B /* MockNetworkMonitor.swift */; };
 		3E232FAFCBEE1193C4976AF6 /* ServiceOrderDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C96416876A8F7727EC39F9 /* ServiceOrderDiscovery.swift */; };
@@ -72,6 +73,7 @@
 		61DF5558A50102034D217C31 /* StatusViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViewModel.swift; sourceTree = "<group>"; };
 		6B6E30A595867FC57AB4A993 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		6FCFB1546B989D230C5DDD7B /* MockNetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkMonitor.swift; sourceTree = "<group>"; };
+		7367AED38E18A76EFD690D73 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		73E228953C1EB7481712B2A6 /* DockNetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetApp.swift; sourceTree = "<group>"; };
 		787FDA0ED86ABB19291C482D /* DockNet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DockNet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B6BB3312A32222795473040 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
@@ -144,6 +146,14 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		53E2E07E8146550A05F8192B /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				7367AED38E18A76EFD690D73 /* AppIcon.icns */,
+			);
+			path = Supporting;
+			sourceTree = "<group>";
+		};
 		5FFDD5D7414CA7225D8DCC16 /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -193,6 +203,7 @@
 				2C44E8B790FDD65EED9BBBAC /* Model */,
 				1D20C2FA52A805876822CCF9 /* Monitoring */,
 				5FFDD5D7414CA7225D8DCC16 /* Services */,
+				53E2E07E8146550A05F8192B /* Supporting */,
 				B67EE312E82E0F9254EA1842 /* UI */,
 			);
 			path = DockNet;
@@ -305,6 +316,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2A26A30CF83B676CFEC6BEE5 /* AppIcon.icns in Resources */,
 				2EBE287EC14484AF2821554E /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -379,7 +391,7 @@
 		226D4F5B4674C4EC8713CCD4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -618,7 +630,7 @@
 		ED562C2C528005EDD4843781 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
