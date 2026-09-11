@@ -8,9 +8,7 @@
   A tiny macOS menu bar utility for seamless Ethernet and Wi-Fi failover.
 </p>
 
----
-
-If you're like me and dock at a place where there is hardwired Ethernet, but then are on Wi-Fi when moving around an office or space, it's annoying to change the enabled/disabled status of connections. DockNet solves this by monitoring for hardwired connections, preferring these, and then switching back over to Wi-Fi when they are no longer connected.
+If you're like me and dock at a place where there is hardwired Ethernet, but then are on Wi-Fi when moving around an office or space, macOS automatically routes traffic over Ethernet when available and switches back to Wi-Fi when disconnected. DockNet makes this seamless failover visible by quietly observing your physical network connections and reporting when changes happen.
 
 DockNet keeps an eye on your Mac's physical network connection and makes it easy to see what's actually being used.
 
@@ -148,7 +146,7 @@ brew bundle
 
 ### Signing
 
-DockNet is currently an independent, unsigned/not-notarized project.
+DockNet is currently an independent, ad-hoc signed, not Developer ID signed, and not notarized project.
 
 Local builds use ad-hoc signing and do not require an Apple Developer Program membership or Developer ID certificate.
 

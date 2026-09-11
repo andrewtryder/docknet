@@ -288,9 +288,6 @@ final class DockNetUITests: XCTestCase {
         // Click to toggle
         notifyToggle.click()
 
-        let autoToggle = window.checkBoxes["docknet.automaticMonitoring"]
-        XCTAssertTrue(autoToggle.waitForExistence(timeout: 5.0))
-
         let loginToggle = window.checkBoxes["docknet.launchAtLogin"]
         XCTAssertTrue(loginToggle.waitForExistence(timeout: 5.0))
     }

@@ -3,7 +3,7 @@ import SwiftUI
 import os
 
 public final class AppDelegate: NSObject, NSApplicationDelegate {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "AppDelegate")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "AppDelegate")
     private var testWindow: NSWindow?
 
     @MainActor
@@ -55,10 +55,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func setupTestHostWindow() {
         let contentView = MenuBarView(viewModel: viewModel)
-            .frame(width: 300)
+            .frame(width: 340)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 200, y: 100, width: 310, height: 750),
+            contentRect: NSRect(x: 200, y: 100, width: 340, height: 750),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false

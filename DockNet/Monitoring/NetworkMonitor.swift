@@ -4,7 +4,7 @@ import os
 /// Unified network monitor combining SystemConfiguration and Network.framework,
 /// feeding snapshots into the NetworkStateMachine.
 public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "NetworkMonitor")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NetworkMonitor")
 
     private let scMonitor: SystemConfigurationMonitor
     private let pathMonitor: PathMonitor
@@ -39,23 +39,10 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
 
         pathMonitor.onPathUpdated = { [weak self] pathInfo in
             guard let self = self else { return }
-            self.lock.lock()
-            let current = self._currentSnapshot
-            self.lock.unlock()
-
-            if let nwPrimary = pathInfo.primaryInterfaceName, nwPrimary != current.primaryInterface {
-                Self.logger.debug("PathMonitor observed primary interface shift to \(nwPrimary)")
-                let updated = NetworkSnapshot(
-                    wiredInterfaces: current.wiredInterfaces,
-                    wifi: current.wifi,
-                    primaryInterface: nwPrimary,
-                    primaryServiceID: current.primaryServiceID,
-                    primaryServiceName: current.primaryServiceName,
-                    globalIPv4Router: current.globalIPv4Router,
-                    timestamp: Date()
-                )
-                self.handleNewSnapshot(updated)
-            }
+            Self.logger.debug("PathMonitor observed reachability update: satisfied=\(pathInfo.isSatisfied)")
+            // NWPathMonitor provides supplementary reachability only and must not synthesize
+            // or overwrite systemPrimaryInterface. Request authoritative refresh from SCDynamicStore.
+            self.scMonitor.requestRefresh()
         }
     }
 

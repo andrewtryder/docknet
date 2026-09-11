@@ -4,7 +4,7 @@ import os
 
 /// Discovers configured network services and macOS Network Service Order using SystemConfiguration APIs.
 public struct ServiceOrderDiscovery: Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "ServiceOrderDiscovery")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "ServiceOrderDiscovery")
 
     public struct DiscoveredService: Equatable, Sendable {
         public let serviceID: String
@@ -63,8 +63,8 @@ public struct ServiceOrderDiscovery: Sendable {
             let bsdName = (SCNetworkInterfaceGetBSDName(iface) as String?) ?? ""
             let ifaceType = (SCNetworkInterfaceGetInterfaceType(iface) as String?) ?? ""
 
-            // Exclude non-wired types
-            if ifaceType == (kSCNetworkInterfaceTypeIEEE80211 as String) || bsdName == "en0" {
+            // Identify Wi-Fi strictly by interface type (kSCNetworkInterfaceTypeIEEE80211)
+            if ifaceType == (kSCNetworkInterfaceTypeIEEE80211 as String) {
                 if detectedWifi == nil || enabled {
                     detectedWifi = DiscoveredService(
                         serviceID: sid,

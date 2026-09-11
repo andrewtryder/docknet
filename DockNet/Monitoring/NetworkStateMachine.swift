@@ -5,7 +5,7 @@ import os
 /// determines the preferred wired interface based on macOS service order, tracks physical transport
 /// independent of overlays/VPNs, and emits deduplicated transition events.
 public final class NetworkStateMachine: @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "NetworkStateMachine")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NetworkStateMachine")
 
     public enum TransitionEvent: Equatable, Sendable, CustomStringConvertible {
         case ethernetStateChanged(bsdName: String, from: EthernetHealthState, to: EthernetHealthState)

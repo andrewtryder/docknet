@@ -6,19 +6,9 @@ import os
 
 @MainActor
 public final class StatusViewModel: ObservableObject {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "StatusViewModel")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "StatusViewModel")
 
     @Published public private(set) var snapshot: NetworkSnapshot
-    @Published public var isAutomaticMonitoringEnabled: Bool = true {
-        didSet {
-            if isAutomaticMonitoringEnabled {
-                networkMonitor.startMonitoring()
-            } else {
-                networkMonitor.stopMonitoring()
-            }
-        }
-    }
-
     @Published public var isNotificationsEnabled: Bool
     @Published public var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
 
@@ -76,7 +66,7 @@ public final class StatusViewModel: ObservableObject {
             let mockScheduler = MockNotificationScheduler(status: .notDetermined)
             let mockNotificationManager = NotificationManager(
                 scheduler: mockScheduler,
-                userDefaults: UserDefaults(suiteName: "com.local.docknet.tests") ?? .standard,
+                userDefaults: UserDefaults(suiteName: "com.andrewtryder.docknet.tests") ?? .standard,
                 debounceInterval: 0 // Immediate execution in tests
             )
 
@@ -107,9 +97,7 @@ public final class StatusViewModel: ObservableObject {
             }
         }
 
-        if isAutomaticMonitoringEnabled {
-            networkMonitor.startMonitoring()
-        }
+        networkMonitor.startMonitoring()
     }
 
     private func checkNotificationAuthStatus() {

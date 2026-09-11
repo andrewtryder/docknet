@@ -3,7 +3,7 @@ import os
 
 /// Deterministic network monitor for UI tests and mock simulations.
 public final class MockNetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "MockNetworkMonitor")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "MockNetworkMonitor")
 
     private let lock = NSLock()
     private var _currentSnapshot: NetworkSnapshot
@@ -88,7 +88,7 @@ public final class MockNetworkMonitor: NetworkMonitoringProtocol, @unchecked Sen
 
     private func setupFileWatcher(at path: String) {
         // Poll every 100ms for state file changes in UI testing mode
-        let queue = DispatchQueue(label: "com.local.docknet.mockwatcher", qos: .utility)
+        let queue = DispatchQueue(label: "com.andrewtryder.docknet.mockwatcher", qos: .utility)
         let timer = DispatchSource.makeTimerSource(queue: queue)
         var lastContent = ""
 

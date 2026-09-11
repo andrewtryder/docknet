@@ -36,9 +36,6 @@ DMG_PATH="${DIST_DIR}/${DMG_NAME}"
 CHECKSUM_NAME="${DMG_NAME}.sha256"
 CHECKSUM_PATH="${DIST_DIR}/${CHECKSUM_NAME}"
 
-# Ensure xcodegen project is up to date
-which xcodegen >/dev/null && xcodegen generate || true
-
 echo "--> Compiling Universal Release Binary (arm64 + x86_64)..."
 xcodebuild \
     -project DockNet.xcodeproj \

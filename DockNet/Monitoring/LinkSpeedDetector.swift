@@ -6,8 +6,25 @@ public protocol LinkSpeedDetecting: Sendable {
     func detectLinkSpeed(for bsdName: String) -> String?
 }
 
+/// Compatibility constants and subtype definitions mirroring Darwin's `<net/if_media.h>`.
+/// These are isolated here because Swift's C importer does not expand Darwin's complex
+/// macro definitions like `_IOWR('i', 56, struct ifmediareq)`.
+public enum DarwinIfMediaCompatibility {
+    /// `_IOWR('i', 56, struct ifmediareq)` ioctl command on 64-bit Darwin macOS.
+    public static let SIOCGIFMEDIA: UInt = 0xc02c6938
+
+    /// `IFM_TYPE_MASK` (`IFM_NMASK`): mask for media type (bits 5-7).
+    public static let IFM_TYPE_MASK: Int32 = 0x000000e0
+    /// `IFM_ETHER`: Ethernet media type.
+    public static let IFM_ETHER: Int32 = 0x00000020
+    /// `IFM_SUBTYPE_MASK` (`IFM_TMASK`): mask for media subtype.
+    public static let IFM_SUBTYPE_MASK: Int32 = 0x000f001f
+    /// `IFM_FDX`: Full duplex flag (bit 20).
+    public static let IFM_FDX: Int32 = 0x00100000
+}
+
 /// Native macOS link speed detector using in-memory BSD socket ioctl (`SIOCGIFMEDIA`).
-/// Does not invoke shell processes, `ifconfig`, or periodic polling.
+/// Does not invoke shell processes, `ifconfig`, `networksetup`, or periodic polling.
 public struct LinkSpeedDetector: LinkSpeedDetecting {
     public init() {}
 
@@ -27,18 +44,22 @@ public struct LinkSpeedDetector: LinkSpeedDetecting {
             ptr.copyBytes(from: bytes.prefix(copyLen))
         }
 
-        let SIOCGIFMEDIA: UInt = 0xc02c6938
-        guard ioctl(sock, SIOCGIFMEDIA, &ifmr) == 0 else {
+        guard ioctl(sock, DarwinIfMediaCompatibility.SIOCGIFMEDIA, &ifmr) == 0 else {
             return nil
         }
 
-        let active = ifmr.ifm_active
-        let ifmType = active & 0x00000380
-        guard ifmType == 0x00000020 else { // IFM_ETHER
+        return Self.formatLinkSpeed(activeWord: ifmr.ifm_active)
+    }
+
+    /// Pure formatting function translating a Darwin `ifmr.ifm_active` media word
+    /// into a human-readable link speed string (e.g. "1 Gbps Full Duplex").
+    public static func formatLinkSpeed(activeWord: Int32) -> String? {
+        let ifmType = activeWord & DarwinIfMediaCompatibility.IFM_TYPE_MASK
+        guard ifmType == DarwinIfMediaCompatibility.IFM_ETHER else {
             return nil
         }
 
-        let subtype = active & 0x0000007f
+        let subtype = activeWord & DarwinIfMediaCompatibility.IFM_SUBTYPE_MASK
         let speedString: String?
         switch subtype {
         case 3, 4, 5, 12, 13:
@@ -59,7 +80,7 @@ public struct LinkSpeedDetector: LinkSpeedDetecting {
 
         guard let speed = speedString else { return nil }
 
-        let isFullDuplex = (active & 0x00100000) != 0 // IFM_FDX
+        let isFullDuplex = (activeWord & DarwinIfMediaCompatibility.IFM_FDX) != 0
         let duplex = isFullDuplex ? "Full Duplex" : "Half Duplex"
 
         return "\(speed) \(duplex)"

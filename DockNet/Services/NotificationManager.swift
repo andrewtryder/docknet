@@ -41,7 +41,7 @@ public struct UserNotificationsScheduler: NotificationScheduling {
         do {
             try await UNUserNotificationCenter.current().add(request)
         } catch {
-            Logger(subsystem: "com.local.DockNet", category: "Notifications").error("Failed to add notification: \(error.localizedDescription)")
+            Logger(subsystem: "com.andrewtryder.DockNet", category: "Notifications").error("Failed to add notification: \(error.localizedDescription)")
         }
     }
 }
@@ -102,7 +102,7 @@ public final class MockNotificationScheduler: @unchecked Sendable, NotificationS
 
 /// Coordinates notification preferences, authorization states, debounce, deduplication, and scheduling.
 public final class NotificationManager: @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "NotificationManager")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NotificationManager")
 
     public static let preferenceKey = "docknet.notifications.enabled"
 
@@ -110,11 +110,12 @@ public final class NotificationManager: @unchecked Sendable {
     public let userDefaults: UserDefaults
 
     private let lock = NSLock()
-    private var _previousPrimary: PrimaryConnection? = nil
+    private var _stablePrimary: PrimaryConnection? = nil
+    private var _pendingCandidate: PrimaryConnection? = nil
     private var _pendingWorkItem: DispatchWorkItem? = nil
     private var _sequenceCounter: Int = 0
     private let debounceInterval: TimeInterval
-    private let queue = DispatchQueue(label: "com.local.docknet.notifications", qos: .utility)
+    private let queue = DispatchQueue(label: "com.andrewtryder.docknet.notifications", qos: .utility)
 
     public init(
         scheduler: any NotificationScheduling = UserNotificationsScheduler(),
@@ -138,7 +139,7 @@ public final class NotificationManager: @unchecked Sendable {
     public var previousPrimary: PrimaryConnection? {
         lock.lock()
         defer { lock.unlock() }
-        return _previousPrimary
+        return _stablePrimary
     }
 
     /// Sets user preference, requesting authorization if enabling for the first time.
@@ -174,27 +175,35 @@ public final class NotificationManager: @unchecked Sendable {
 
         lock.lock()
         // 1. Quiet initial startup
-        guard let prev = _previousPrimary else {
+        guard let stable = _stablePrimary else {
             Self.logger.info("Initial network snapshot recorded. Primary: \(currentPrimary.bsdName, privacy: .public)")
-            _previousPrimary = currentPrimary
+            _stablePrimary = currentPrimary
             lock.unlock()
             return
         }
 
-        // 2. No transition if identical
-        if prev == currentPrimary {
+        // 2. If the new snapshot matches the existing stable primary:
+        if currentPrimary == stable {
+            if let pending = _pendingWorkItem {
+                // Cancel any pending transition back to a transient primary (A -> B -> A).
+                pending.cancel()
+                _pendingWorkItem = nil
+                _pendingCandidate = nil
+                Self.logger.info("Transition cancelled: primary returned to stable \(stable.bsdName, privacy: .public)")
+            }
             lock.unlock()
             return
         }
 
-        // 3. Cancel existing debounce timer
+        // 3. New candidate differs from stable primary (A -> B or A -> B -> C)
         _pendingWorkItem?.cancel()
         _pendingWorkItem = nil
+        _pendingCandidate = currentPrimary
 
         // If debounce is 0 (test mode), process immediately
         if debounceInterval <= 0 {
-            _previousPrimary = currentPrimary
-            let transition = ConnectionTransition(from: prev, to: currentPrimary)
+            _stablePrimary = currentPrimary
+            let transition = ConnectionTransition(from: stable, to: currentPrimary)
             _sequenceCounter += 1
             let seq = _sequenceCounter
             lock.unlock()
@@ -206,20 +215,31 @@ public final class NotificationManager: @unchecked Sendable {
         }
 
         // 4. Schedule debounced transition
-        let workItem = DispatchWorkItem { [weak self] in
+        let candidate = currentPrimary
+        var workItem: DispatchWorkItem!
+        workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.lock.lock()
-            let finalPrev = self._previousPrimary
-            self._previousPrimary = currentPrimary
+            guard !workItem.isCancelled else {
+                self.lock.unlock()
+                return
+            }
+            guard let from = self._stablePrimary, from != candidate else {
+                self._pendingWorkItem = nil
+                self._pendingCandidate = nil
+                self.lock.unlock()
+                return
+            }
+            self._stablePrimary = candidate
+            self._pendingCandidate = nil
+            self._pendingWorkItem = nil
             self._sequenceCounter += 1
             let seq = self._sequenceCounter
             self.lock.unlock()
 
-            if let from = finalPrev, from != currentPrimary {
-                let transition = ConnectionTransition(from: from, to: currentPrimary)
-                Task {
-                    await self.evaluateAndSend(transition: transition, sequence: seq)
-                }
+            let transition = ConnectionTransition(from: from, to: candidate)
+            Task {
+                await self.evaluateAndSend(transition: transition, sequence: seq)
             }
         }
 
@@ -264,7 +284,8 @@ public final class NotificationManager: @unchecked Sendable {
         defer { lock.unlock() }
         _pendingWorkItem?.cancel()
         _pendingWorkItem = nil
-        _previousPrimary = nil
+        _pendingCandidate = nil
+        _stablePrimary = nil
     }
 
     private static func extractPrimaryConnection(from snapshot: NetworkSnapshot) -> PrimaryConnection {

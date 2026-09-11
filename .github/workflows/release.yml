@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing Git tag to release (e.g. v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,28 +20,26 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Determine Version
+      - name: Resolve and Validate Tag
         id: version
         run: |
-          RAW_TAG="${GITHUB_REF_NAME}"
-          if [[ "${RAW_TAG}" =~ ^v[0-9] ]]; then
-            VERSION="${RAW_TAG#v}"
-            TAG="${RAW_TAG}"
-          else
-            # For workflow_dispatch on a commit without tag, derive latest tag or fallback
-            LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")"
-            VERSION="${LATEST_TAG#v}"
-            TAG="v${VERSION}"
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          # Strict SemVer regex: ^v[0-9]+\.[0-9]+\.[0-9]+$
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Tag '${TAG}' does not match required SemVer format '^v[0-9]+\.[0-9]+\.[0-9]+$'" >&2
+            exit 1
           fi
+          VERSION="${TAG#v}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Resolved Tag:     ${TAG}"
-          echo "Resolved Version: ${VERSION}"
+          echo "Validated Tag:     ${TAG}"
+          echo "Validated Version: ${VERSION}"
+
+      - name: Checkout Tagged Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          fetch-depth: 0
 
       - name: Build Debug Application
         run: make build
@@ -50,12 +53,10 @@ jobs:
             VERSION="${{ steps.version.outputs.version }}" \
             BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
 
-      - name: Prepare Release Notes
+      - name: Prepare Release Notes Notice
         id: notes
         run: |
           cat << 'EOF' > release_notes.md
-          ### DockNet v${{ steps.version.outputs.version }}
-
           DockNet is currently distributed as an ad-hoc-signed, non-notarized open-source macOS application.
 
           macOS may block the first launch. If so, use **System Settings -> Privacy & Security -> Open Anyway**.
@@ -86,6 +87,7 @@ jobs:
               "${DMG_PATH}" \
               "${CHECKSUM_PATH}" \
               --title "DockNet ${TAG}" \
-              --notes-file release_notes.md \
-              --generate-notes
+              --notes "$(cat release_notes.md)" \
+              --generate-notes \
+              --verify-tag
           fi

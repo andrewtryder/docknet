@@ -6,7 +6,7 @@ import os
 /// and dynamically discovers physical wired Ethernet interfaces, Wi-Fi, and macOS service order,
 /// resolving the authoritative underlying physical transport (Ethernet > Wi-Fi) without interference from VPNs.
 public final class SystemConfigurationMonitor: @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "SystemConfigurationMonitor")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "SystemConfigurationMonitor")
 
     private let queue: DispatchQueue
     private var dynamicStore: SCDynamicStore?
@@ -19,7 +19,7 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
     public init(
         stateMachine: NetworkStateMachine = NetworkStateMachine(),
         linkSpeedDetector: any LinkSpeedDetecting = LinkSpeedDetector(),
-        queue: DispatchQueue = DispatchQueue(label: "com.local.docknet.scdynamicstore", qos: .utility)
+        queue: DispatchQueue = DispatchQueue(label: "com.andrewtryder.docknet.scdynamicstore", qos: .utility)
     ) {
         self.stateMachine = stateMachine
         self.linkSpeedDetector = linkSpeedDetector
@@ -73,7 +73,7 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
 
         guard let store = SCDynamicStoreCreate(
             kCFAllocatorDefault,
-            "com.local.DockNet" as CFString,
+            "com.andrewtryder.DockNet" as CFString,
             callback,
             &context
         ) else {
@@ -213,7 +213,6 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
 
     private func triggerSnapshot() {
         let snapshot = captureSnapshot()
-        stateMachine.process(snapshot: snapshot)
         onSnapshotUpdated?(snapshot)
     }
 

@@ -4,7 +4,7 @@ import os
 
 /// Observes macOS network path viability and default route selection via Network.framework.
 public final class PathMonitor: @unchecked Sendable {
-    private static let logger = Logger(subsystem: "com.local.DockNet", category: "PathMonitor")
+    private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "PathMonitor")
 
     public struct PathStatusInfo: Equatable, Sendable {
         public let isSatisfied: Bool
@@ -34,7 +34,7 @@ public final class PathMonitor: @unchecked Sendable {
 
     public var onPathUpdated: (@Sendable (PathStatusInfo) -> Void)?
 
-    public init(queue: DispatchQueue = DispatchQueue(label: "com.local.docknet.pathmonitor", qos: .utility)) {
+    public init(queue: DispatchQueue = DispatchQueue(label: "com.andrewtryder.docknet.pathmonitor", qos: .utility)) {
         self.monitor = NWPathMonitor()
         self.queue = queue
     }

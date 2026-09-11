@@ -406,7 +406,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNet;
 				PRODUCT_NAME = DockNet;
 				SDKROOT = macosx;
 			};
@@ -427,7 +427,7 @@
 					"@loader_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNetUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNetUITests;
 				PRODUCT_NAME = DockNetUITests;
 				SDKROOT = macosx;
 				TEST_TARGET_NAME = DockNet;
@@ -516,7 +516,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNetTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNetTests;
 				PRODUCT_NAME = DockNetTests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DockNet.app/Contents/MacOS/DockNet";
@@ -598,7 +598,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNetTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNetTests;
 				PRODUCT_NAME = DockNetTests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DockNet.app/Contents/MacOS/DockNet";
@@ -620,7 +620,7 @@
 					"@loader_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNetUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNetUITests;
 				PRODUCT_NAME = DockNetUITests;
 				SDKROOT = macosx;
 				TEST_TARGET_NAME = DockNet;
@@ -645,7 +645,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.local.DockNet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNet;
 				PRODUCT_NAME = DockNet;
 				SDKROOT = macosx;
 			};

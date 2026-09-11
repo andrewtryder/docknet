@@ -141,7 +141,7 @@ watch: live-status
 
 live-status:
 	@echo "Watching DockNet live state transitions (Ctrl+C to stop)..."
-	@/usr/bin/log stream --predicate 'subsystem == "com.local.DockNet"' --style compact
+	@/usr/bin/log stream --predicate 'subsystem == "com.andrewtryder.DockNet"' --style compact
 
 diagnose:
 	@chmod +x scripts/diagnose.sh
