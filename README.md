@@ -10,6 +10,8 @@
 
 ---
 
+If you're like me and dock at a place where there is hardwired Ethernet, but then are on Wi-Fi when moving around an office or space, it's annoying to change the enabled/disabled status of connections. DockNet solves this by monitoring for hardwired connections, preferring these, and then switching back over to Wi-Fi when they are no longer connected.
+
 DockNet keeps an eye on your Mac's physical network connection and makes it easy to see what's actually being used.
 
 Plug into Ethernet and macOS can prefer the wired connection. Unplug it and Wi-Fi is already connected and ready to take over. DockNet simply watches that process and tells you what happened.
