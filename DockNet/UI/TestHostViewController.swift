@@ -8,6 +8,7 @@ public final class TestHostViewController: NSViewController {
     private let networkMonitor: any NetworkMonitoringProtocol
     private let notificationManager: NotificationManager
     private let loginItemManager: LoginItemManager
+    public let presentationPreferences: PresentationPreferences
 
     private var contentStack: NSStackView!
     private var iconView: NSImageView!
@@ -21,15 +22,18 @@ public final class TestHostViewController: NSViewController {
 
     private var notificationsCheckbox: NSButton!
     private var launchAtLoginCheckbox: NSButton!
+    private var styleSegmented: NSSegmentedControl?
 
     public init(
         networkMonitor: any NetworkMonitoringProtocol,
         notificationManager: NotificationManager,
-        loginItemManager: LoginItemManager
+        loginItemManager: LoginItemManager,
+        presentationPreferences: PresentationPreferences = PresentationPreferences()
     ) {
         self.networkMonitor = networkMonitor
         self.notificationManager = notificationManager
         self.loginItemManager = loginItemManager
+        self.presentationPreferences = presentationPreferences
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -130,6 +134,39 @@ public final class TestHostViewController: NSViewController {
         loginBtn.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
         self.launchAtLoginCheckbox = loginBtn
         stack.addArrangedSubview(loginBtn)
+
+        // Display Style row
+        let styleRow = NSStackView()
+        styleRow.orientation = .horizontal
+        styleRow.spacing = 8
+        styleRow.alignment = .centerY
+
+        let styleLabel = NSTextField(labelWithString: "Display Style")
+        styleLabel.font = NSFont.systemFont(ofSize: 12)
+        styleRow.addArrangedSubview(styleLabel)
+
+        let segmented = NSSegmentedControl(
+            labels: ["Compact", "Detailed"],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(handleStyleChanged(_:))
+        )
+        segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+        segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
+        self.styleSegmented = segmented
+        styleRow.addArrangedSubview(segmented)
+
+        let compactBtn = NSButton(title: "Compact", target: self, action: #selector(selectCompactStyle))
+        compactBtn.setAccessibilityIdentifier("docknet.presentation.compact")
+        compactBtn.isHidden = true
+        styleRow.addArrangedSubview(compactBtn)
+
+        let detailedBtn = NSButton(title: "Detailed", target: self, action: #selector(selectDetailedStyle))
+        detailedBtn.setAccessibilityIdentifier("docknet.presentation.detailed")
+        detailedBtn.isHidden = true
+        styleRow.addArrangedSubview(detailedBtn)
+
+        stack.addArrangedSubview(styleRow)
 
         stack.addArrangedSubview(makeSeparator())
 
@@ -300,6 +337,7 @@ public final class TestHostViewController: NSViewController {
         notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
         loginItemManager.refreshStatus()
         launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+        styleSegmented?.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
     }
 
     private func makeSeparator() -> NSBox {
@@ -342,5 +380,20 @@ public final class TestHostViewController: NSViewController {
 
     @objc private func handleQuit() {
         NSApp.terminate(nil)
+    }
+
+    @objc private func handleStyleChanged(_ sender: NSSegmentedControl) {
+        let newStyle: PresentationStyle = (sender.selectedSegment == 0) ? .compact : .detailed
+        presentationPreferences.style = newStyle
+    }
+
+    @objc private func selectCompactStyle() {
+        presentationPreferences.style = .compact
+        styleSegmented?.selectedSegment = 0
+    }
+
+    @objc private func selectDetailedStyle() {
+        presentationPreferences.style = .detailed
+        styleSegmented?.selectedSegment = 1
     }
 }

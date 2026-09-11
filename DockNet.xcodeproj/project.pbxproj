@@ -14,13 +14,16 @@
 		27DBE06DF0038A62F758B659 /* DockNetLiveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7421293B8DC0C45786156BA /* DockNetLiveUITests.swift */; };
 		2A26A30CF83B676CFEC6BEE5 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 7367AED38E18A76EFD690D73 /* AppIcon.icns */; };
 		2EBE287EC14484AF2821554E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A97E5229A0D69FA138C31A7 /* Assets.xcassets */; };
+		30D849EE92AA55F24B9CAFDE /* CompactMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5060BBFF6C8B9711749499A6 /* CompactMenuBuilder.swift */; };
 		3CB3AD2131824F97A629A981 /* MockNetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCFB1546B989D230C5DDD7B /* MockNetworkMonitor.swift */; };
 		3E232FAFCBEE1193C4976AF6 /* ServiceOrderDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C96416876A8F7727EC39F9 /* ServiceOrderDiscovery.swift */; };
+		472D7A64C997EE4A1126B000 /* StatusIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606A11F45FD247B20883F851 /* StatusIndicatorView.swift */; };
 		501D81C99E991F294B2374E1 /* DockNetNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22D8F8854527680E7764D04E /* DockNetNotification.swift */; };
 		537DBE156587AE8C0BAD0227 /* NetworkStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BBAF814F8F69D8E380D4191 /* NetworkStateMachine.swift */; };
 		5791DDD1EF4D3E45CBDE755C /* EthernetHealthState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36CA828CDCC85D4749341C38 /* EthernetHealthState.swift */; };
 		63C86C177FCE0187B66ED8FE /* TestHostViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D479AC4C783ECF6B465F9C /* TestHostViewController.swift */; };
 		6EFF649798FCABFC8383BEF9 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C716A662816F3B6EE6BFAD5A /* StatusItemController.swift */; };
+		7926F77BD187E2AB3FF2FF0C /* DetailedPopoverController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6AFCC59F44F3587A83528F /* DetailedPopoverController.swift */; };
 		7ABE558F5CE5B331187685E6 /* NetworkMonitoringProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5359A77CF9B4BDFF62C28A3 /* NetworkMonitoringProtocol.swift */; };
 		83C5FB5754AFDA254BE6C69D /* AboutViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DC381425A91E2745497004 /* AboutViewController.swift */; };
 		9156F4B359626D121CFFB9F4 /* SystemConfigurationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57DBDE11D91D7CB9454D8DC0 /* SystemConfigurationMonitor.swift */; };
@@ -28,10 +31,13 @@
 		9BBBBCDF83D5B7BCC4CE5F1A /* WiredInterfaceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C295C4F0D07A99D1041B84 /* WiredInterfaceState.swift */; };
 		A532C5AACF72882032141940 /* URLOpening.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDF7973348B40A2DE1BB4F4 /* URLOpening.swift */; };
 		A9EC66AEF4FD9158D58FF77A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EB3FCAF8168059547B0604 /* AppDelegate.swift */; };
+		B67B2D97BFFEEE1078795FC5 /* PresentationPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB3F35569ACBE7EFCA52856 /* PresentationPreferencesTests.swift */; };
 		C603EC68E6CA40F8A0EC499F /* NetworkInterfaceInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F2B2931793D7718CCADB48 /* NetworkInterfaceInfo.swift */; };
 		C6BEEAD867F32EB9EAE0240B /* NetworkSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CF48EAABFCAC9495CF0C49 /* NetworkSnapshot.swift */; };
 		CCD6C634C1696129ED5DE59B /* NetworkStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B81B8AAE8EF0E6A646ED2DF /* NetworkStateMachineTests.swift */; };
 		D186C4FA33904BD93727D71E /* LoginItemManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3685ED45276D300190F152BF /* LoginItemManager.swift */; };
+		D40D16FDEEC4216622DFC8FB /* PresentationStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD7880C1E64527CCB4DD298 /* PresentationStyle.swift */; };
+		D6BCD6ED4531A27FED788F34 /* DetailedStatusViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05E105ADC289CF2331A6DA15 /* DetailedStatusViewController.swift */; };
 		EF6B76F905CDE14A611F5A6A /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B6BB3312A32222795473040 /* NetworkMonitor.swift */; };
 		F1339209E118FC14470E2B85 /* LinkSpeedDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D3AA79921792ECE3C3550B /* LinkSpeedDetector.swift */; };
 /* End PBXBuildFile section */
@@ -54,6 +60,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		05E105ADC289CF2331A6DA15 /* DetailedStatusViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatusViewController.swift; sourceTree = "<group>"; };
 		18D3AA79921792ECE3C3550B /* LinkSpeedDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkSpeedDetector.swift; sourceTree = "<group>"; };
 		20EB3FCAF8168059547B0604 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		22D8F8854527680E7764D04E /* DockNetNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetNotification.swift; sourceTree = "<group>"; };
@@ -63,10 +70,12 @@
 		3DDF7973348B40A2DE1BB4F4 /* URLOpening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLOpening.swift; sourceTree = "<group>"; };
 		44F2B2931793D7718CCADB48 /* NetworkInterfaceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkInterfaceInfo.swift; sourceTree = "<group>"; };
 		4D8CED0879344A058E63A3A4 /* AboutWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutWindowController.swift; sourceTree = "<group>"; };
+		5060BBFF6C8B9711749499A6 /* CompactMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactMenuBuilder.swift; sourceTree = "<group>"; };
 		50CF48EAABFCAC9495CF0C49 /* NetworkSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSnapshot.swift; sourceTree = "<group>"; };
 		51FB308028ECADB12BC20D30 /* StatusIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIconRenderer.swift; sourceTree = "<group>"; };
 		57DBDE11D91D7CB9454D8DC0 /* SystemConfigurationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemConfigurationMonitor.swift; sourceTree = "<group>"; };
 		59AE09D97765CBDED5984759 /* DockNetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetUITests.swift; sourceTree = "<group>"; };
+		606A11F45FD247B20883F851 /* StatusIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusIndicatorView.swift; sourceTree = "<group>"; };
 		6FCFB1546B989D230C5DDD7B /* MockNetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkMonitor.swift; sourceTree = "<group>"; };
 		7367AED38E18A76EFD690D73 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		787FDA0ED86ABB19291C482D /* DockNet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DockNet.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -81,7 +90,10 @@
 		B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalTransport.swift; sourceTree = "<group>"; };
 		C6D479AC4C783ECF6B465F9C /* TestHostViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHostViewController.swift; sourceTree = "<group>"; };
 		C716A662816F3B6EE6BFAD5A /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		CAB3F35569ACBE7EFCA52856 /* PresentationPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationPreferencesTests.swift; sourceTree = "<group>"; };
 		CC0ED133E826C7002955649F /* DockNetUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DockNetUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CFD7880C1E64527CCB4DD298 /* PresentationStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresentationStyle.swift; sourceTree = "<group>"; };
+		DA6AFCC59F44F3587A83528F /* DetailedPopoverController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedPopoverController.swift; sourceTree = "<group>"; };
 		E5359A77CF9B4BDFF62C28A3 /* NetworkMonitoringProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitoringProtocol.swift; sourceTree = "<group>"; };
 		F7421293B8DC0C45786156BA /* DockNetLiveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetLiveUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -117,6 +129,7 @@
 				44F2B2931793D7718CCADB48 /* NetworkInterfaceInfo.swift */,
 				50CF48EAABFCAC9495CF0C49 /* NetworkSnapshot.swift */,
 				B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */,
+				CFD7880C1E64527CCB4DD298 /* PresentationStyle.swift */,
 				A1C295C4F0D07A99D1041B84 /* WiredInterfaceState.swift */,
 			);
 			path = Model;
@@ -164,6 +177,7 @@
 			isa = PBXGroup;
 			children = (
 				2B81B8AAE8EF0E6A646ED2DF /* NetworkStateMachineTests.swift */,
+				CAB3F35569ACBE7EFCA52856 /* PresentationPreferencesTests.swift */,
 			);
 			path = DockNetTests;
 			sourceTree = "<group>";
@@ -172,7 +186,11 @@
 			isa = PBXGroup;
 			children = (
 				92DC381425A91E2745497004 /* AboutViewController.swift */,
+				5060BBFF6C8B9711749499A6 /* CompactMenuBuilder.swift */,
+				DA6AFCC59F44F3587A83528F /* DetailedPopoverController.swift */,
+				05E105ADC289CF2331A6DA15 /* DetailedStatusViewController.swift */,
 				51FB308028ECADB12BC20D30 /* StatusIconRenderer.swift */,
+				606A11F45FD247B20883F851 /* StatusIndicatorView.swift */,
 				C716A662816F3B6EE6BFAD5A /* StatusItemController.swift */,
 				C6D479AC4C783ECF6B465F9C /* TestHostViewController.swift */,
 			);
@@ -325,6 +343,9 @@
 				83C5FB5754AFDA254BE6C69D /* AboutViewController.swift in Sources */,
 				94536EDF1D61D8E5FB4C272E /* AboutWindowController.swift in Sources */,
 				A9EC66AEF4FD9158D58FF77A /* AppDelegate.swift in Sources */,
+				30D849EE92AA55F24B9CAFDE /* CompactMenuBuilder.swift in Sources */,
+				7926F77BD187E2AB3FF2FF0C /* DetailedPopoverController.swift in Sources */,
+				D6BCD6ED4531A27FED788F34 /* DetailedStatusViewController.swift in Sources */,
 				501D81C99E991F294B2374E1 /* DockNetNotification.swift in Sources */,
 				5791DDD1EF4D3E45CBDE755C /* EthernetHealthState.swift in Sources */,
 				F1339209E118FC14470E2B85 /* LinkSpeedDetector.swift in Sources */,
@@ -337,8 +358,10 @@
 				537DBE156587AE8C0BAD0227 /* NetworkStateMachine.swift in Sources */,
 				0BD3E4F6E562713BDA1BE38F /* NotificationManager.swift in Sources */,
 				1713D79BF84C6DAFCD650235 /* PhysicalTransport.swift in Sources */,
+				D40D16FDEEC4216622DFC8FB /* PresentationStyle.swift in Sources */,
 				3E232FAFCBEE1193C4976AF6 /* ServiceOrderDiscovery.swift in Sources */,
 				105C7846F2BF513FB12163B8 /* StatusIconRenderer.swift in Sources */,
+				472D7A64C997EE4A1126B000 /* StatusIndicatorView.swift in Sources */,
 				6EFF649798FCABFC8383BEF9 /* StatusItemController.swift in Sources */,
 				9156F4B359626D121CFFB9F4 /* SystemConfigurationMonitor.swift in Sources */,
 				63C86C177FCE0187B66ED8FE /* TestHostViewController.swift in Sources */,
@@ -352,6 +375,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CCD6C634C1696129ED5DE59B /* NetworkStateMachineTests.swift in Sources */,
+				B67B2D97BFFEEE1078795FC5 /* PresentationPreferencesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

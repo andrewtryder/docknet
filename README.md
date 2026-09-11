@@ -16,7 +16,7 @@ Plug into Ethernet and macOS can prefer the wired connection. Unplug it and Wi-F
 
 ## What it does
 
-DockNet lives quietly in the macOS menu bar and shows your current physical network connection. It supports multiple Ethernet adapters, including USB, Thunderbolt docks, and Ethernet built into monitors.
+DockNet lives quietly in the macOS menu bar and shows your current physical network connection. It supports multiple Ethernet adapters, including USB, Thunderbolt docks, and Ethernet built into monitors. DockNet offers Compact and Detailed menu-bar views.
 
 When Ethernet is connected and healthy, DockNet reports it as the primary connection. If Ethernet disappears or cannot obtain a usable network configuration, Wi-Fi remains available as the fallback.
 

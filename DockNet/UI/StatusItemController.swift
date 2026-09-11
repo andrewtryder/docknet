@@ -1,26 +1,32 @@
 import AppKit
 import os
 
-/// Native AppKit status bar item controller managing the DockNet menu bar item and dynamic NSMenu.
+/// Native AppKit status bar item controller managing the DockNet menu bar item,
+/// routing between Compact (NSMenu) and Detailed (NSPopover) presentation styles.
 @MainActor
 public final class StatusItemController: NSObject, NSMenuDelegate {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "StatusItemController")
 
-    private let statusItem: NSStatusItem
-    private let menu: NSMenu
-    private let networkMonitor: NetworkMonitor
-    private let notificationManager: NotificationManager
-    private let loginItemManager: LoginItemManager
+    public let statusItem: NSStatusItem
+    public let menu: NSMenu
+    public let networkMonitor: any NetworkMonitoringProtocol
+    public let notificationManager: NotificationManager
+    public let loginItemManager: LoginItemManager
+    public let presentationPreferences: PresentationPreferences
+
     private var currentIconState: StatusIconState?
+    public private(set) var detailedPopoverController: DetailedPopoverController?
 
     public init(
-        networkMonitor: NetworkMonitor,
+        networkMonitor: any NetworkMonitoringProtocol,
         notificationManager: NotificationManager,
-        loginItemManager: LoginItemManager
+        loginItemManager: LoginItemManager,
+        presentationPreferences: PresentationPreferences = PresentationPreferences()
     ) {
         self.networkMonitor = networkMonitor
         self.notificationManager = notificationManager
         self.loginItemManager = loginItemManager
+        self.presentationPreferences = presentationPreferences
 
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.menu = NSMenu()
@@ -29,18 +35,66 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
 
         self.menu.delegate = self
         self.menu.autoenablesItems = false
-        self.statusItem.menu = self.menu
 
         if let button = statusItem.button {
             button.setAccessibilityElement(true)
             button.setAccessibilityIdentifier("docknet.status.icon")
         }
 
+        applyPresentationStyle(presentationPreferences.style)
         updateIcon(snapshot: networkMonitor.currentSnapshot)
     }
 
     public func updateSnapshot(_ snapshot: NetworkSnapshot) {
         updateIcon(snapshot: snapshot)
+        if let popover = detailedPopoverController, popover.isShown {
+            popover.updateSnapshot(snapshot)
+        }
+    }
+
+    public func setPresentationStyle(_ style: PresentationStyle) {
+        guard presentationPreferences.style != style else { return }
+        Self.logger.info("Switching presentation style to \(style.rawValue)")
+        presentationPreferences.style = style
+        applyPresentationStyle(style)
+    }
+
+    private func applyPresentationStyle(_ style: PresentationStyle) {
+        switch style {
+        case .compact:
+            detailedPopoverController?.closePopover()
+            statusItem.menu = self.menu
+            if let button = statusItem.button {
+                button.target = nil
+                button.action = nil
+            }
+
+        case .detailed:
+            menu.cancelTracking()
+            statusItem.menu = nil
+            if let button = statusItem.button {
+                button.target = self
+                button.action = #selector(statusItemClicked(_:))
+            }
+        }
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        guard let button = statusItem.button else { return }
+
+        if detailedPopoverController == nil {
+            detailedPopoverController = DetailedPopoverController(
+                networkMonitor: networkMonitor,
+                notificationManager: notificationManager,
+                loginItemManager: loginItemManager,
+                presentationPreferences: presentationPreferences,
+                onStyleChanged: { [weak self] newStyle in
+                    self?.setPresentationStyle(newStyle)
+                }
+            )
+        }
+
+        detailedPopoverController?.togglePopover(anchorView: button)
     }
 
     private func updateIcon(snapshot: NetworkSnapshot) {
@@ -58,147 +112,52 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - NSMenuDelegate
 
     public func menuWillOpen(_ menu: NSMenu) {
-        buildMenuItems()
+        CompactMenuBuilder.build(
+            menu: menu,
+            snapshot: networkMonitor.currentSnapshot,
+            notificationManager: notificationManager,
+            loginItemManager: loginItemManager,
+            presentationPreferences: presentationPreferences,
+            target: self
+        )
     }
 
-    private func buildMenuItems() {
-        menu.removeAllItems()
+    // MARK: - Menu Actions
 
-        let snapshot = networkMonitor.currentSnapshot
-
-        // 1. Primary Connection
-        let primaryHeader = NSMenuItem(title: "Primary Connection", action: nil, keyEquivalent: "")
-        primaryHeader.isEnabled = false
-        menu.addItem(primaryHeader)
-
-        if snapshot.actualPrimaryIsWired, let active = snapshot.activePrimaryWiredInterface {
-            let item = NSMenuItem(title: "\(active.serviceName) (Primary)", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-
-            let detail = NSMenuItem(title: "   \(active.bsdName) · \(active.ipv4Address ?? "No IP")", action: nil, keyEquivalent: "")
-            detail.isEnabled = false
-            menu.addItem(detail)
-
-            if let speed = active.linkSpeed {
-                let speedItem = NSMenuItem(title: "   \(speed)", action: nil, keyEquivalent: "")
-                speedItem.isEnabled = false
-                menu.addItem(speedItem)
-            }
-        } else if snapshot.isWifiPrimary {
-            let item = NSMenuItem(title: "Wi-Fi (Primary)", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-
-            let detail = NSMenuItem(title: "   \(snapshot.wifi.bsdName) · \(snapshot.wifi.primaryIPv4Address ?? "No IP")", action: nil, keyEquivalent: "")
-            detail.isEnabled = false
-            menu.addItem(detail)
-        } else {
-            let item = NSMenuItem(title: "No Active Primary Connection", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-
-        menu.addItem(NSMenuItem.separator())
-
-        // 2. Other Connections
-        let otherWired = snapshot.actualPrimaryIsWired
-            ? snapshot.wiredInterfaces.filter { !$0.isPrimary }
-            : snapshot.wiredInterfaces
-        let showWifiStandby = snapshot.actualPrimaryIsWired
-
-        if !otherWired.isEmpty || showWifiStandby {
-            let otherHeader = NSMenuItem(title: "Other Connections", action: nil, keyEquivalent: "")
-            otherHeader.isEnabled = false
-            menu.addItem(otherHeader)
-
-            for iface in otherWired {
-                let title = "\(iface.serviceName) · \(iface.statusSummary) (\(iface.bsdName)\(iface.ipv4Address.map { " · \($0)" } ?? ""))"
-                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-                item.isEnabled = false
-                menu.addItem(item)
-            }
-
-            if showWifiStandby {
-                let wifiTitle = "Wi-Fi · \(snapshot.wifiStatusText) (\(snapshot.wifi.bsdName)\(snapshot.wifi.primaryIPv4Address.map { " · \($0)" } ?? ""))"
-                let item = NSMenuItem(title: wifiTitle, action: nil, keyEquivalent: "")
-                item.isEnabled = false
-                menu.addItem(item)
-            }
-
-            menu.addItem(NSMenuItem.separator())
-        }
-
-        // 3. Preferences
-        let notifyItem = NSMenuItem(
-            title: "Notify on connection changes",
-            action: #selector(toggleNotificationsAction),
-            keyEquivalent: ""
-        )
-        notifyItem.target = self
-        notifyItem.state = notificationManager.isPreferenceEnabled ? .on : .off
-        menu.addItem(notifyItem)
-
-        loginItemManager.refreshStatus()
-        let loginItem = NSMenuItem(
-            title: "Launch at Login",
-            action: #selector(toggleLaunchAtLoginAction),
-            keyEquivalent: ""
-        )
-        loginItem.target = self
-        loginItem.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        menu.addItem(loginItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // 4. Actions
-        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshAction), keyEquivalent: "r")
-        refreshItem.target = self
-        menu.addItem(refreshItem)
-
-        let settingsItem = NSMenuItem(title: "Open Network Settings…", action: #selector(openNetworkSettingsAction), keyEquivalent: "")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let aboutItem = NSMenuItem(title: "About DockNet…", action: #selector(openAboutAction), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: "Quit DockNet", action: #selector(quitAction), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
+    @objc public func selectCompactStyleAction() {
+        setPresentationStyle(.compact)
     }
 
-    // MARK: - Actions
+    @objc public func selectDetailedStyleAction() {
+        setPresentationStyle(.detailed)
+    }
 
-    @objc private func toggleNotificationsAction() {
+    @objc public func toggleNotificationsAction() {
         let current = notificationManager.isPreferenceEnabled
         Task { @MainActor in
             _ = await notificationManager.setPreferenceEnabled(!current)
         }
     }
 
-    @objc private func toggleLaunchAtLoginAction() {
+    @objc public func toggleLaunchAtLoginAction() {
         loginItemManager.toggleLaunchAtLogin()
     }
 
-    @objc private func refreshAction() {
+    @objc public func refreshAction() {
         networkMonitor.refresh()
     }
 
-    @objc private func openNetworkSettingsAction() {
+    @objc public func openNetworkSettingsAction() {
         let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")
             ?? URL(string: "x-apple.systempreferences:")!
         WorkspaceURLOpener().open(url)
     }
 
-    @objc private func openAboutAction() {
+    @objc public func openAboutAction() {
         AboutWindowController.shared.showAboutWindow()
     }
 
-    @objc private func quitAction() {
+    @objc public func quitAction() {
         NSApp.terminate(nil)
     }
 }

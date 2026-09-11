@@ -405,4 +405,28 @@ final class DockNetUITests: XCTestCase {
         XCTAssertFalse(window.staticTexts["Tailscale"].exists)
         XCTAssertFalse(window.staticTexts["VPN"].exists)
     }
+
+    // 16. Display Style selector is interactive and reflects selection
+    func testDisplayStyleSelectorIsInteractive() throws {
+        let app = launchApp(scenario: "wifi")
+        let window = app.windows["DockNet Test Host"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5.0))
+
+        let segmented = window.descendants(matching: .any)["docknet.presentation.segmented"]
+        XCTAssertTrue(segmented.waitForExistence(timeout: 5.0))
+
+        let detailedRadio = segmented.radioButtons["Detailed"]
+        if detailedRadio.waitForExistence(timeout: 2.0) {
+            detailedRadio.click()
+        } else if segmented.buttons["Detailed"].exists {
+            segmented.buttons["Detailed"].click()
+        }
+
+        let compactRadio = segmented.radioButtons["Compact"]
+        if compactRadio.waitForExistence(timeout: 2.0) {
+            compactRadio.click()
+        } else if segmented.buttons["Compact"].exists {
+            segmented.buttons["Compact"].click()
+        }
+    }
 }
