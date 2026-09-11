@@ -1,0 +1,94 @@
+name: DockNet
+options:
+  bundleIdPrefix: com.local
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    COMBINE_HIDPI_IMAGES: YES
+
+targets:
+  DockNet:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: DockNet
+        excludes:
+          - Supporting/Info.plist
+    info:
+      path: DockNet/Supporting/Info.plist
+      properties:
+        LSUIElement: true
+        LSMinimumSystemVersion: "13.0"
+        NSHighResolutionCapable: true
+    settings:
+      base:
+        PRODUCT_NAME: DockNet
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.DockNet
+        INFOPLIST_FILE: DockNet/Supporting/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  DockNetTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: DockNetTests
+    dependencies:
+      - target: DockNet
+    settings:
+      base:
+        PRODUCT_NAME: DockNetTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.DockNetTests
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: YES
+
+  DockNetUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: DockNetUITests
+    dependencies:
+      - target: DockNet
+    settings:
+      base:
+        PRODUCT_NAME: DockNetUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.DockNetUITests
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  DockNet:
+    build:
+      targets:
+        DockNet: all
+        DockNetTests: [test]
+        DockNetUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - DockNetTests
+        - DockNetUITests

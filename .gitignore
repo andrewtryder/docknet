@@ -1,0 +1,23 @@
+# Xcode
+build/
+DerivedData/
+*.moved-builder
+*.hmap
+*.xccheckout
+*.xcscmblueprint
+
+# User-specific Xcode files (keep shared schemes and project file!)
+*.xcuserstate
+project.xcworkspace/xcuserdata/
+*.xcuserdatad/
+xcuserdata/
+
+# macOS system files
+.DS_Store
+*.swp
+*~
+
+# Local temporary files
+.build/
+dist/
+*.app
