@@ -27,6 +27,8 @@ targets:
     info:
       path: DockNet/Supporting/Info.plist
       properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         LSUIElement: true

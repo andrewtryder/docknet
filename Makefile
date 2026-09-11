@@ -12,13 +12,14 @@ INSTALLED_APP := $(INSTALL_DIR)/DockNet.app
 # Optional xcbeautify formatter
 BEAUTIFY := $(shell command -v xcbeautify 2> /dev/null)
 
-.PHONY: all build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
+.PHONY: all build release-build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
 
 all: build
 
 help:
 	@echo "DockNet Build Targets:"
 	@echo "  make build               - Build DockNet Debug configuration with xcodebuild"
+	@echo "  make release-build       - Build universal Release app, DMG, and checksum"
 	@echo "  make test                - Run unit tests with xcodebuild (same as test-unit)"
 	@echo "  make test-unit           - Run pure unit tests (NetworkStateMachineTests)"
 	@echo "  make test-ui             - Run deterministic XCUITest suite (DockNetUITests)"
@@ -42,6 +43,10 @@ build:
 		-destination '$(DESTINATION)' \
 		-derivedDataPath $(DERIVED_DATA) \
 		build $(if $(BEAUTIFY),| xcbeautify)
+
+release-build:
+	@chmod +x scripts/build-release.sh
+	@./scripts/build-release.sh $(VERSION) $(BUILD_NUMBER)
 
 test: test-unit
 

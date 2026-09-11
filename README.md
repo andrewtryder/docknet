@@ -70,7 +70,30 @@ DockNet does not try to replace macOS networking. It does not disable Wi-Fi, rew
 
 macOS handles the actual routing and failover. DockNet observes the result and makes it visible.
 
-## Build it yourself
+## Installation
+
+### Downloading a release
+
+Download the latest pre-built universal DMG (`DockNet-<version>-macOS-universal.dmg`) and its SHA-256 checksum from [GitHub Releases](https://github.com/andrewtryder/docknet/releases).
+
+Release builds are:
+- **ad-hoc signed**
+- **not Developer ID signed**
+- **not notarized by Apple**
+
+Because DockNet is an independent, non-notarized open-source project, macOS Gatekeeper may display a security prompt when opening the application for the first time.
+
+To launch DockNet using standard macOS controls:
+
+1. Attempt to open `DockNet.app`.
+2. Open **System Settings -> Privacy & Security**.
+3. Scroll down to find the message stating DockNet was blocked.
+4. Click **Open Anyway**.
+5. Confirm **Open** when prompted.
+
+Users who prefer not to bypass Gatekeeper can clone the repository and build DockNet locally from source.
+
+## Building from source
 
 DockNet is a native Swift macOS application. You will need:
 
