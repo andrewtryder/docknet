@@ -369,4 +369,43 @@ final class DockNetUITests: XCTestCase {
             }
         }
     }
+
+    // 14. VPN active over Ethernet keeps Ethernet as primary with zero VPN UI presence
+    func testVPNActiveKeepsEthernetAsPrimaryWithoutShowingVPN() throws {
+        let app = launchApp(scenario: "vpnOverEthernet")
+        let window = app.windows["DockNet Test Host"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5.0))
+
+        let primaryType = window.staticTexts["docknet.primary.type"]
+        XCTAssertTrue(primaryType.waitForExistence(timeout: 5.0))
+        XCTAssertEqual(textValue(of: primaryType), "Ethernet")
+
+        let en6Primary = window.staticTexts["docknet.wired.en6.primary"]
+        XCTAssertTrue(en6Primary.waitForExistence(timeout: 5.0))
+
+        // Confirm utun and Tailscale never appear in the UI
+        XCTAssertFalse(window.staticTexts["utun5"].exists)
+        XCTAssertFalse(window.staticTexts["Tailscale"].exists)
+        XCTAssertFalse(window.staticTexts["VPN"].exists)
+    }
+
+    // 15. VPN active over Wi-Fi keeps Wi-Fi as primary with zero VPN UI presence
+    func testVPNActiveKeepsWifiAsPrimaryWithoutShowingVPN() throws {
+        let app = launchApp(scenario: "vpnOverWifi")
+        let window = app.windows["DockNet Test Host"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5.0))
+
+        let primaryType = window.staticTexts["docknet.primary.type"]
+        XCTAssertTrue(primaryType.waitForExistence(timeout: 5.0))
+        XCTAssertEqual(textValue(of: primaryType), "Wi-Fi")
+
+        let wifiHealth = window.staticTexts["docknet.wifi.health"]
+        XCTAssertTrue(wifiHealth.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(textValue(of: wifiHealth).contains("Primary"))
+
+        // Confirm utun and Tailscale never appear in the UI
+        XCTAssertFalse(window.staticTexts["utun5"].exists)
+        XCTAssertFalse(window.staticTexts["Tailscale"].exists)
+        XCTAssertFalse(window.staticTexts["VPN"].exists)
+    }
 }

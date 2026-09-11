@@ -3,7 +3,8 @@ import SystemConfiguration
 import os
 
 /// Event-driven monitor that listens to macOS `SCDynamicStore` network state notifications
-/// and dynamically discovers physical wired Ethernet interfaces and macOS service order.
+/// and dynamically discovers physical wired Ethernet interfaces, Wi-Fi, and macOS service order,
+/// resolving the authoritative underlying physical transport (Ethernet > Wi-Fi) without interference from VPNs.
 public final class SystemConfigurationMonitor: @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.local.DockNet", category: "SystemConfigurationMonitor")
 
@@ -116,15 +117,15 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             return NetworkSnapshot(wiredInterfaces: [], wifi: emptyWifi)
         }
 
-        // 2. Global IPv4 state
-        var primaryInterface: String? = nil
-        var primaryServiceID: String? = nil
+        // 2. Global IPv4 state (systemPrimaryInterface may legitimately be a VPN like utun5)
+        var systemPrimaryInterface: String? = nil
+        var systemPrimaryServiceID: String? = nil
         var globalRouter: String? = nil
 
         let globalKey = "State:/Network/Global/IPv4" as CFString
         if let globalDict = SCDynamicStoreCopyValue(store, globalKey) as? [String: Any] {
-            primaryInterface = globalDict["PrimaryInterface"] as? String
-            primaryServiceID = globalDict["PrimaryService"] as? String
+            systemPrimaryInterface = globalDict["PrimaryInterface"] as? String
+            systemPrimaryServiceID = globalDict["PrimaryService"] as? String
             globalRouter = globalDict["Router"] as? String
         }
 
@@ -138,20 +139,13 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
                 serviceID: service.serviceID,
                 serviceOrder: service.serviceOrder,
                 enabled: service.enabled,
-                globalPrimary: primaryInterface,
+                globalPrimary: systemPrimaryInterface,
                 globalRouter: globalRouter
             )
             rawWiredInfos.append(ifaceInfo)
         }
 
-        // 4. Evaluate health & determine preferred wired interface via stateMachine
-        let evaluatedWiredStates = stateMachine.evaluateWiredInterfaces(
-            from: rawWiredInfos,
-            primaryInterface: primaryInterface,
-            linkSpeedDetector: linkSpeedDetector
-        )
-
-        // 5. Inspect Wi-Fi service
+        // 4. Inspect Wi-Fi service
         let wifiBSD = discovery.wifiService?.bsdName ?? "en0"
         let wifiName = discovery.wifiService?.serviceName ?? "Wi-Fi"
         let wifiInfo = readInterfaceInfo(
@@ -161,33 +155,57 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             serviceID: discovery.wifiService?.serviceID,
             serviceOrder: discovery.wifiService?.serviceOrder,
             enabled: discovery.wifiService?.enabled ?? true,
-            globalPrimary: primaryInterface,
+            globalPrimary: systemPrimaryInterface,
             globalRouter: globalRouter
         )
 
         // Find primary service name
         var primaryName: String? = nil
-        if let pid = primaryServiceID {
+        if let pid = systemPrimaryServiceID {
             if let match = discovery.wiredEthernetServices.first(where: { $0.serviceID == pid }) {
                 primaryName = match.serviceName
             } else if discovery.wifiService?.serviceID == pid {
                 primaryName = discovery.wifiService?.serviceName
             }
         }
-        if primaryName == nil, let pIface = primaryInterface {
-            if let match = evaluatedWiredStates.first(where: { $0.bsdName == pIface }) {
+        if primaryName == nil, let pIface = systemPrimaryInterface {
+            if let match = rawWiredInfos.first(where: { $0.bsdName == pIface }) {
                 primaryName = match.serviceName
             } else if pIface == wifiInfo.bsdName {
                 primaryName = wifiInfo.serviceName
             }
         }
 
-        return NetworkSnapshot(
-            wiredInterfaces: evaluatedWiredStates,
+        // 5. Initial health evaluation to feed the PhysicalTransportResolver
+        let tempWiredStates = stateMachine.evaluateWiredInterfaces(
+            from: rawWiredInfos,
+            physicalPrimaryInterface: nil,
+            linkSpeedDetector: linkSpeedDetector
+        )
+
+        // 6. Authoritative Physical Transport Resolution (Ethernet > Wi-Fi, VPNs isolated)
+        let resolvedPhysicalTransport = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: systemPrimaryInterface,
+            systemPrimaryServiceName: primaryName,
+            wiredInterfaces: tempWiredStates,
             wifi: wifiInfo,
-            primaryInterface: primaryInterface,
-            primaryServiceID: primaryServiceID,
-            primaryServiceName: primaryName,
+            previousPhysicalPrimaryBSD: stateMachine.currentPhysicalPrimaryBSD
+        )
+
+        // 7. Final wired evaluation stamping `isPrimary` on the active physical Ethernet adapter
+        let finalWiredStates = stateMachine.evaluateWiredInterfaces(
+            from: rawWiredInfos,
+            physicalPrimaryInterface: resolvedPhysicalTransport.bsdName,
+            linkSpeedDetector: linkSpeedDetector
+        )
+
+        return NetworkSnapshot(
+            wiredInterfaces: finalWiredStates,
+            wifi: wifiInfo,
+            systemPrimaryInterface: systemPrimaryInterface,
+            systemPrimaryServiceID: systemPrimaryServiceID,
+            systemPrimaryServiceName: primaryName,
+            physicalTransport: resolvedPhysicalTransport,
             globalIPv4Router: globalRouter,
             timestamp: Date()
         )
@@ -242,7 +260,6 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             }
         }
 
-        // Fall back to global router if interface is primary and interface router wasn't listed
         if router == nil && globalPrimary == bsdName {
             router = globalRouter
         }

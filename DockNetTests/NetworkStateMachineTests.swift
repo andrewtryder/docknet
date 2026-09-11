@@ -739,5 +739,524 @@ final class NetworkStateMachineTests: XCTestCase {
         XCTAssertTrue(mockOpener.open(targetURL))
         XCTAssertEqual(mockOpener.lastOpenedURL?.absoluteString, "https://github.com/andrewtryder/docknet")
     }
+
+    // MARK: - Physical Transport & VPN / Overlay Isolation Tests
+
+    // 14. en6 primary, then utun5 appears -> physical primary remains en6
+    func testEn6PrimaryThenUtunAppearsPreservesEn6() {
+        let wifi = makeWifiInfo()
+        let en6 = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready,
+            isPreferred: true,
+            isPrimary: true
+        )
+
+        // Initial snapshot without VPN
+        let snap1 = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "en6"
+        )
+        XCTAssertEqual(snap1.physicalPrimaryInterface, "en6")
+        XCTAssertTrue(snap1.actualPrimaryIsWired)
+
+        // Tailscale connects: system primary becomes utun5
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en6"
+        )
+        XCTAssertEqual(resolved.kind, .ethernet)
+        XCTAssertEqual(resolved.bsdName, "en6")
+
+        let snap2 = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            physicalTransport: resolved
+        )
+        XCTAssertEqual(snap2.physicalPrimaryInterface, "en6")
+        XCTAssertTrue(snap2.actualPrimaryIsWired)
+        XCTAssertFalse(snap2.isWifiPrimary)
+    }
+
+    // 15. en0 primary, then Tailscale appears -> physical primary remains en0
+    func testEn0PrimaryThenTailscaleAppearsPreservesEn0() {
+        let wifi = makeWifiInfo()
+        let en8Disconnected = WiredInterfaceState(
+            serviceID: "EN8-ID",
+            serviceName: "USB 10/100/1000 LAN",
+            bsdName: "en8",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: false,
+            health: .cableDisconnected
+        )
+
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en8Disconnected],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en0"
+        )
+        XCTAssertEqual(resolved.kind, .wifi)
+        XCTAssertEqual(resolved.bsdName, "en0")
+
+        let snap = NetworkSnapshot(
+            wiredInterfaces: [en8Disconnected],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: resolved
+        )
+        XCTAssertEqual(snap.physicalPrimaryInterface, "en0")
+        XCTAssertTrue(snap.isWifiPrimary)
+        XCTAssertFalse(snap.actualPrimaryIsWired)
+    }
+
+    // 16. VPN active while en6 disconnects -> physical primary becomes en0
+    func testVPNActiveWhileEn6DisconnectsResolvesToEn0() {
+        let wifi = makeWifiInfo()
+        let en6Disconnected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: false,
+            health: .cableDisconnected
+        )
+
+        // Previous was en6, but en6 is now cableDisconnected
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en6Disconnected],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en6"
+        )
+        XCTAssertEqual(resolved.kind, .wifi)
+        XCTAssertEqual(resolved.bsdName, "en0")
+    }
+
+    // 17. VPN active while en6 becomes Ready -> physical primary becomes en6
+    func testVPNActiveWhileEn6BecomesReadyPromotesToEn6() {
+        let wifi = makeWifiInfo()
+        let en6Ready = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        // Previous physical primary was en0 (Wi-Fi), system primary is utun5
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en6Ready],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en0"
+        )
+        XCTAssertEqual(resolved.kind, .ethernet)
+        XCTAssertEqual(resolved.bsdName, "en6")
+    }
+
+    // 18. utun5 -> utun6 transition -> no physical transition
+    func testUtun5ToUtun6TransitionProducesNoPhysicalTransition() {
+        let sm = NetworkStateMachine(initialPhysicalPrimary: "en6")
+        let wifi = makeWifiInfo()
+        let en6 = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        let snap1 = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        let events1 = sm.process(snapshot: snap1)
+        XCTAssertFalse(events1.contains(where: {
+            if case .physicalPrimaryChanged = $0 { return true }
+            return false
+        }))
+
+        // VPN changes tunnel number: utun5 -> utun6
+        let snap2 = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "utun6",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        let events2 = sm.process(snapshot: snap2)
+
+        // Verifies no physicalPrimaryChanged event was emitted
+        let physicalChanged = events2.contains(where: {
+            if case .physicalPrimaryChanged = $0 { return true }
+            return false
+        })
+        XCTAssertFalse(physicalChanged, "VPN interface change from utun5 to utun6 must not emit physicalPrimaryChanged")
+    }
+
+    // 19. VPN connects -> no notification
+    func testVPNConnectsProducesNoNotification() async {
+        let mockScheduler = MockNotificationScheduler(status: .authorized)
+        let mgr = NotificationManager(scheduler: mockScheduler, userDefaults: UserDefaults(suiteName: "test.vpn.1") ?? .standard, debounceInterval: 0)
+        mgr.isPreferenceEnabled = true
+
+        let wifi = makeWifiInfo()
+        let en6 = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        // 1. Initial snapshot on en6 (quiet startup)
+        let initialSnap = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "en6",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        mgr.processSnapshot(initialSnap)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        XCTAssertEqual(mockScheduler.sentNotifications.count, 0)
+
+        // 2. Tailscale connects (system: utun5, physical remains en6)
+        let vpnSnap = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        mgr.processSnapshot(vpnSnap)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertEqual(mockScheduler.sentNotifications.count, 0, "VPN connect must not emit notification")
+    }
+
+    // 20. VPN disconnects -> no notification
+    func testVPNDisconnectsProducesNoNotification() async {
+        let mockScheduler = MockNotificationScheduler(status: .authorized)
+        let mgr = NotificationManager(scheduler: mockScheduler, userDefaults: UserDefaults(suiteName: "test.vpn.2") ?? .standard, debounceInterval: 0)
+        mgr.isPreferenceEnabled = true
+
+        let wifi = makeWifiInfo()
+        let en6 = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        // Initial snapshot under VPN (quiet startup)
+        let initialSnap = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        mgr.processSnapshot(initialSnap)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        // VPN disconnects: system primary returns to en6
+        let normalSnap = NetworkSnapshot(
+            wiredInterfaces: [en6],
+            wifi: wifi,
+            systemPrimaryInterface: "en6",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        mgr.processSnapshot(normalSnap)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertEqual(mockScheduler.sentNotifications.count, 0, "VPN disconnect must not emit notification")
+    }
+
+    // 21. Ethernet -> Wi-Fi while VPN active -> one Wi-Fi notification
+    func testEthernetToWifiWhileVPNActiveEmitsOneNotification() async {
+        let mockScheduler = MockNotificationScheduler(status: .authorized)
+        let mgr = NotificationManager(scheduler: mockScheduler, userDefaults: UserDefaults(suiteName: "test.vpn.3") ?? .standard, debounceInterval: 0)
+        mgr.isPreferenceEnabled = true
+
+        let wifi = makeWifiInfo()
+        let en6Connected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        // Initial state: en6 under VPN
+        let snap1 = NetworkSnapshot(
+            wiredInterfaces: [en6Connected],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6")
+        )
+        mgr.processSnapshot(snap1)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        // en6 disconnects while VPN remains active
+        let en6Disconnected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: false,
+            health: .cableDisconnected
+        )
+        let snap2 = NetworkSnapshot(
+            wiredInterfaces: [en6Disconnected],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .wifi, bsdName: "en0")
+        )
+        mgr.processSnapshot(snap2)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertEqual(mockScheduler.sentNotifications.count, 1)
+        XCTAssertEqual(mockScheduler.sentNotifications.first?.title, "Switched to Wi-Fi")
+    }
+
+    // 22. Wi-Fi -> Ethernet while VPN active -> one Ethernet notification
+    func testWifiToEthernetWhileVPNActiveEmitsOneNotification() async {
+        let mockScheduler = MockNotificationScheduler(status: .authorized)
+        let mgr = NotificationManager(scheduler: mockScheduler, userDefaults: UserDefaults(suiteName: "test.vpn.4") ?? .standard, debounceInterval: 0)
+        mgr.isPreferenceEnabled = true
+
+        let wifi = makeWifiInfo()
+        let en6Disconnected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: false,
+            health: .cableDisconnected
+        )
+
+        // Initial state: Wi-Fi under VPN
+        let snap1 = NetworkSnapshot(
+            wiredInterfaces: [en6Disconnected],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .wifi, bsdName: "en0")
+        )
+        mgr.processSnapshot(snap1)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        // Ethernet reconnects while VPN remains active
+        let en6Connected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+        let snap2 = NetworkSnapshot(
+            wiredInterfaces: [en6Connected],
+            wifi: wifi,
+            systemPrimaryInterface: "utun5",
+            physicalTransport: PhysicalTransport(kind: .ethernet, bsdName: "en6", serviceName: "USB 10/100/1G/2.5G LAN")
+        )
+        mgr.processSnapshot(snap2)
+        try? await Task.sleep(nanoseconds: 10_000_000)
+
+        XCTAssertEqual(mockScheduler.sentNotifications.count, 1)
+        XCTAssertEqual(mockScheduler.sentNotifications.first?.title, "Switched to Ethernet")
+    }
+
+    // 23. en8 remains healthy when VPN appears -> en8 preserved
+    func testEn8RemainsHealthyWhenVPNAppearsPreservesEn8() {
+        let wifi = makeWifiInfo()
+        let en8 = WiredInterfaceState(
+            serviceID: "EN8-ID",
+            serviceName: "USB 10/100/1000 LAN",
+            bsdName: "en8",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.42",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            wiredInterfaces: [en8],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en8"
+        )
+        XCTAssertEqual(resolved.kind, .ethernet)
+        XCTAssertEqual(resolved.bsdName, "en8")
+    }
+
+    // 24. Multiple healthy Ethernet interfaces under VPN -> preserve previous physical primary
+    func testMultipleHealthyEthernetUnderVPNPreservesPreviousPhysicalPrimary() {
+        let wifi = makeWifiInfo()
+        let en8 = WiredInterfaceState(
+            serviceID: "EN8-ID",
+            serviceName: "USB 10/100/1000 LAN",
+            bsdName: "en8",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.42",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+        let en6 = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 2,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+
+        // Previous physical was en6 even though en8 is order 1
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            wiredInterfaces: [en8, en6],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en6"
+        )
+        XCTAssertEqual(resolved.bsdName, "en6", "Must preserve last-known healthy physical primary")
+    }
+
+    // 25. If previous Ethernet disappears under VPN -> select next healthy Ethernet by service order
+    func testPreviousEthernetDisappearsUnderVPNSelectsNextByServiceOrder() {
+        let wifi = makeWifiInfo()
+        let en8 = WiredInterfaceState(
+            serviceID: "EN8-ID",
+            serviceName: "USB 10/100/1000 LAN",
+            bsdName: "en8",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "192.168.88.42",
+            gateway: "192.168.88.1",
+            health: .ready
+        )
+        let en6Disconnected = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 2,
+            linkActive: false,
+            health: .cableDisconnected
+        )
+
+        // Previous was en6, but en6 is disconnected; en8 is ready
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            wiredInterfaces: [en8, en6Disconnected],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en6"
+        )
+        XCTAssertEqual(resolved.bsdName, "en8", "Must select next healthy Ethernet by service order")
+    }
+
+    // 26. Virtual and overlay interfaces never qualify as physical transports
+    func testVirtualAndOverlayInterfacesNeverQualifyAsPhysical() {
+        let virtualInterfaces = [
+            "utun0", "utun5", "utun9",
+            "ipsec0", "ipsec3",
+            "ppp0", "ppp1",
+            "gif0", "stf0",
+            "bridge0", "bridge100",
+            "awdl0", "llw0", "lo0"
+        ]
+
+        for iface in virtualInterfaces {
+            XCTAssertTrue(
+                PhysicalTransportResolver.isVirtualOrOverlay(bsdName: iface),
+                "\(iface) must be recognized as virtual/overlay"
+            )
+        }
+
+        XCTAssertTrue(PhysicalTransportResolver.isVirtualOrOverlay(bsdName: "en8", serviceName: "Tailscale"))
+        XCTAssertTrue(PhysicalTransportResolver.isVirtualOrOverlay(bsdName: "en8", serviceName: "Thunderbolt Bridge"))
+        XCTAssertFalse(PhysicalTransportResolver.isVirtualOrOverlay(bsdName: "en6", serviceName: "USB 10/100/1G/2.5G LAN"))
+        XCTAssertFalse(PhysicalTransportResolver.isVirtualOrOverlay(bsdName: "en0", serviceName: "Wi-Fi"))
+    }
+
+    // 27. VPN interface can never satisfy an Ethernet-ready test
+    func testVPNInterfaceCanNeverSatisfyEthernetReady() {
+        let wifi = makeWifiInfo()
+        let en8Degraded = WiredInterfaceState(
+            serviceID: "EN8-ID",
+            serviceName: "USB 10/100/1000 LAN",
+            bsdName: "en8",
+            enabled: true,
+            serviceOrder: 1,
+            linkActive: true,
+            ipv4Address: "169.254.10.20",
+            health: .degraded
+        )
+
+        // System primary is utun5 with a valid public IP
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun5",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en8Degraded],
+            wifi: wifi
+        )
+
+        XCTAssertNotEqual(resolved.kind, .ethernet)
+        XCTAssertEqual(resolved.kind, .wifi)
+        XCTAssertEqual(resolved.bsdName, "en0")
+    }
 }
+
 

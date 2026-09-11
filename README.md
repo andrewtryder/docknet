@@ -1,107 +1,140 @@
 # DockNet
 
-**DockNet** is a lightweight, event-driven native macOS menu-bar application built in Swift by **Andrew Ryder**.
-
-It dynamically monitors configured physical wired Ethernet interfaces and Wi-Fi, tracking macOS Network Service Order and the authoritative system primary interface (`State:/Network/Global/IPv4`). DockNet provides clear status visibility and optional native notifications during network transitions, while keeping Wi-Fi associated as an immediate, zero-downtime fallback whenever Ethernet is disconnected, negotiating, or degraded.
-
 <p align="center">
-  <img src="assets/docknet-screenshot.png" alt="DockNet Live Menu Bar Interface" width="300">
+  <img src="docs/docknet-icon.svg" width="96" height="96" alt="DockNet icon">
 </p>
 
-**Author**: Andrew Ryder  
-**Repository**: [https://github.com/andrewtryder/docknet](https://github.com/andrewtryder/docknet)
+<p align="center">
+  A tiny macOS menu bar utility for seamless Ethernet and Wi-Fi failover.
+</p>
 
 ---
 
-## Key Features
+DockNet keeps an eye on your Mac's physical network connection and makes it easy to see what's actually being used.
 
-1. **Authoritative Primary Connection**:
-   - Distinctly tracks and displays the actual macOS system primary interface (`State:/Network/Global/IPv4`), service order preference, and interface health.
-   - Wi-Fi is clearly marked as `Connected · Primary` when active as the default route, and `Connected · Standby` when connected while Ethernet is primary.
+Plug into Ethernet and macOS can prefer the wired connection. Unplug it and Wi-Fi is already connected and ready to take over. DockNet simply watches that process and tells you what happened.
 
-2. **Configured Wired Services Discovery & Fine-Grained States**:
-   - Shows only configured `SCNetworkService` Ethernet entries, filtering out dormant or unconfigured raw hardware adapters (`HiddenConfiguration == true`).
-   - Accurately reports states: `Disabled`, `Adapter Not Present`, `Cable Disconnected`, `Obtaining DHCP`, `Degraded`, `Ready · Primary`, and `Ready · Available`.
-   - Exposes negotiated link speed (e.g. `100 Mbps Full Duplex`, `1 Gbps Full Duplex`, `2.5 Gbps Full Duplex`) using Darwin's in-memory BSD `SIOCGIFMEDIA` socket ioctl without shell polling.
+## What it does
 
-3. **Opt-In Native Transition Notifications**:
-   - Controlled via the user preference checkbox: `Notify on connection changes`.
-   - Requests macOS notification permission (`[.alert]`, sounds disabled by default) only when explicitly enabled by the user.
-   - If notification authorization is denied by macOS, the UI clearly displays `⚠ Notifications disabled by macOS` with a shortcut to System Settings.
-   - Notifies only on subsequent stable primary interface changes (Wi-Fi ↔ Ethernet, or switching between physical Ethernet adapters).
-   - Quiet startup: no notification is emitted on application launch (`previousPrimary == nil`).
-   - Debounced (1000 ms) and deduplicated to prevent flapping and banner spam.
+DockNet lives quietly in the macOS menu bar and shows your current physical network connection. It supports multiple Ethernet adapters, including USB, Thunderbolt docks, and Ethernet built into monitors.
 
-4. **Polished Native About DockNet Window**:
-   - Access via `About DockNet…` near the bottom of the menu bar.
-   - Features the custom vector identity, dynamically read version/build (`Version 1.0 (1)`), creator attribution (**Created by Andrew Ryder**), and a direct link to the canonical GitHub repository.
-   - Managed as a single native window that activates and fronts if selected again.
+When Ethernet is connected and healthy, DockNet reports it as the primary connection. If Ethernet disappears or cannot obtain a usable network configuration, Wi-Fi remains available as the fallback.
 
-5. **Observational Architecture & Zero Route Manipulation**:
-   - Operates entirely via event-driven kernel notifications (`SCDynamicStoreSetDispatchQueue` + `NWPathMonitor`).
-   - Does **not** modify routing tables, does not disable Wi-Fi, does not force DHCP, does not require root, and installs no privileged helpers.
+Optional macOS notifications can let you know when the physical connection changes.
 
-6. **Real macOS UI Automation with XCUITest**:
-   - Automated UI testing target (`DockNetUITests`) testing the real running application.
-   - Dedicated `--ui-testing` test presentation mode hosting the production SwiftUI `MenuBarView` with complete accessibility identifiers.
-   - Deterministic test state injection and dynamic multi-state transition testing without restarting the application.
-   - Non-destructive live hardware smoke test (`make test-ui-live`).
-   - Automatic screenshot export to `build/screenshots/` and accessibility audit validation.
+<p align="center">
+  <img src="assets/docknet-screenshot.png" width="300" alt="DockNet live menu bar interface">
+</p>
 
-7. **Local Ad-hoc Signing**:
-   - Configured with "Sign to Run Locally" (`CODE_SIGN_IDENTITY = "-"`).
-   - Launch at Login managed via modern `SMAppService.mainApp` (macOS 13.0+).
+### Example
 
----
+**Docked**
 
-## Make Targets & Commands
+> Ethernet · en6  
+> 192.168.88.160  
+> Ready · Primary  
+
+**Undocked**
+
+> Wi-Fi · en0  
+> 192.168.88.148  
+> Connected · Primary  
+
+Wi-Fi stays associated while Ethernet is in use, allowing macOS to fail over quickly when a cable or dock is disconnected.
+
+## VPNs and Tailscale
+
+DockNet intentionally ignores VPN and tunnel interfaces. Tailscale, VPN clients, exit nodes, and `utun` interfaces are overlays on top of your physical connection. DockNet continues to report the underlying Ethernet or Wi-Fi connection and leaves VPN software completely alone.
+
+VPN connection changes do not generate DockNet notifications.
+
+## Notifications
+
+Connection notifications are optional. When enabled, DockNet can show a macOS banner when the physical connection changes, for example:
+
+> **Switched to Ethernet**  
+> USB 10/100/1G/2.5G LAN · en6  
+
+or:
+
+> **Switched to Wi-Fi**  
+> Using en0 · 192.168.88.148  
+
+DockNet does not notify simply because a VPN connects or disconnects.
+
+## Philosophy
+
+DockNet does not try to replace macOS networking. It does not disable Wi-Fi, rewrite routes, manage your VPN, or run a privileged network daemon.
+
+macOS handles the actual routing and failover. DockNet observes the result and makes it visible.
+
+## Build it yourself
+
+DockNet is a native Swift macOS application. You will need:
+
+- macOS
+- Xcode
+- Apple's `xcodebuild` command-line tools
+
+Clone the repository:
 
 ```bash
-# Build Debug binary using Apple's canonical xcodebuild
-make build
-
-# Run unit tests (NetworkStateMachineTests)
-make test-unit
-
-# Run deterministic XCUITest UI automation suite (DockNetUITests)
-make test-ui
-
-# Run observational live network smoke test against real hardware (DockNetLiveUITests)
-make test-ui-live
-
-# Send a manual test notification using the installed application
-make test-notification
-
-# Run all test suites (unit + UI tests)
-make test-all
-
-# Install to ~/Applications/DockNet.app
-make install
-
-# Launch application
-make run
-
-# Stream live state transitions from running DockNet
-make watch
-
-# Run comprehensive read-only network diagnostics
-make diagnose
-
-# Clean local build and screenshot artifacts
-make clean
-
-# Regenerate DockNet.xcodeproj from project.yml (requires xcodegen)
-make regenerate-project
+git clone https://github.com/andrewtryder/docknet.git
+cd docknet
 ```
 
----
+Build:
 
-## Test Automation & Screenshots
+```bash
+make build
+```
 
-When running `make test-ui` or `make test-all`, screenshots for key network states are automatically captured and saved to `build/screenshots/`:
-- `wifi_primary.png`: Wi-Fi active as primary connection
-- `single_ethernet_primary.png`: Single wired Ethernet connected, healthy, and preferred
-- `ethernet_degraded.png`: Degraded / self-assigned `169.254.x.x` link-local address
-- `two_ethernet_adapters_one_healthy.png`: Multiple adapters with only one healthy
-- `two_ethernet_both_ready.png`: Multiple ready adapters respecting service order precedence
-- `live_hardware_network_state.png`: Real snapshot captured during live smoke testing
+Run the tests:
+
+```bash
+make test-all
+```
+
+Install the local build:
+
+```bash
+make install
+```
+
+Launch it:
+
+```bash
+make run
+```
+
+DockNet installs to:
+
+```text
+~/Applications/DockNet.app
+```
+
+The Xcode project is checked into the repository, so XcodeGen is not required for normal builds.
+
+If you want the optional development tools:
+
+```bash
+brew bundle
+```
+
+### Signing
+
+DockNet is currently an independent, unsigned/not-notarized project.
+
+Local builds use ad-hoc signing and do not require an Apple Developer Program membership or Developer ID certificate.
+
+Because published builds are not notarized by Apple, macOS may display a security warning when opening a downloaded build. If you prefer, clone the source and build DockNet locally using the instructions above.
+
+## About
+
+DockNet was created by **Andrew Ryder**.
+
+[View DockNet on GitHub](https://github.com/andrewtryder/docknet)
+
+<p align="center">
+  <em>Ethernet when it's there. Wi-Fi when it isn't.</em>
+</p>

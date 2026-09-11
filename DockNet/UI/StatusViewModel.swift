@@ -210,43 +210,47 @@ public final class StatusViewModel: ObservableObject {
     }
 
     public var activeConnectionTitle: String {
-        if snapshot.actualPrimaryIsWired {
+        switch snapshot.physicalTransport.kind {
+        case .ethernet:
             return "Ethernet"
-        } else if snapshot.isWifiPrimary {
+        case .wifi:
             return "Wi-Fi"
-        } else if let primaryName = snapshot.primaryServiceName, !primaryName.isEmpty {
-            return primaryName
-        } else if let primary = snapshot.primaryInterface, !primary.isEmpty {
-            return primary
-        } else {
+        case .none:
             return "No Connection"
         }
     }
 
     public var activeConnectionSubtitle: String {
-        if let activeWired = snapshot.activePrimaryWiredInterface {
-            let ip = activeWired.ipv4Address ?? "No IP"
-            return "\(activeWired.serviceName) (\(activeWired.bsdName)) · \(ip)"
-        } else if snapshot.isWifiPrimary {
+        switch snapshot.physicalTransport.kind {
+        case .ethernet:
+            if let activeWired = snapshot.activePrimaryWiredInterface {
+                let ip = activeWired.ipv4Address ?? "No IP"
+                return "\(activeWired.serviceName) (\(activeWired.bsdName)) · \(ip)"
+            } else if let bsd = snapshot.physicalPrimaryInterface {
+                let name = snapshot.physicalTransport.serviceName ?? "Ethernet"
+                let ip = snapshot.physicalTransport.ipv4Address ?? "No IP"
+                return "\(name) (\(bsd)) · \(ip)"
+            } else {
+                return "Ethernet"
+            }
+        case .wifi:
             let ip = snapshot.wifi.primaryIPv4Address ?? "No IP"
             return "\(snapshot.wifi.serviceName) (\(snapshot.wifi.bsdName)) · \(ip)"
-        } else if let primary = snapshot.primaryInterface {
-            return primary
-        } else {
+        case .none:
             return "Offline"
         }
     }
 
     public var primaryPathTitle: String {
-        if let activeWired = snapshot.activePrimaryWiredInterface {
-            return "Ethernet (\(activeWired.serviceName))"
-        } else if snapshot.actualPrimaryIsWired {
+        switch snapshot.physicalTransport.kind {
+        case .ethernet:
+            if let activeWired = snapshot.activePrimaryWiredInterface {
+                return "Ethernet (\(activeWired.serviceName))"
+            }
             return "Ethernet"
-        } else if snapshot.isWifiPrimary {
+        case .wifi:
             return "Wi-Fi (\(snapshot.wifi.bsdName))"
-        } else if let primary = snapshot.primaryInterface {
-            return primary
-        } else {
+        case .none:
             return "None"
         }
     }

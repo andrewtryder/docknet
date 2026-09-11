@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00B06D1E2CE3C5C7F4F10020 /* DockNetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59AE09D97765CBDED5984759 /* DockNetUITests.swift */; };
 		0BD3E4F6E562713BDA1BE38F /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907758949417A168C68F2563 /* NotificationManager.swift */; };
+		1713D79BF84C6DAFCD650235 /* PhysicalTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */; };
 		1BB54FCE33A8118B4589A4DD /* StatusViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61DF5558A50102034D217C31 /* StatusViewModel.swift */; };
 		27DBE06DF0038A62F758B659 /* DockNetLiveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7421293B8DC0C45786156BA /* DockNetLiveUITests.swift */; };
 		2EBE287EC14484AF2821554E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A97E5229A0D69FA138C31A7 /* Assets.xcassets */; };
@@ -81,6 +82,7 @@
 		908B22FF66B4F75269ED4D61 /* DockNetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DockNetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		95C96416876A8F7727EC39F9 /* ServiceOrderDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceOrderDiscovery.swift; sourceTree = "<group>"; };
 		A1C295C4F0D07A99D1041B84 /* WiredInterfaceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiredInterfaceState.swift; sourceTree = "<group>"; };
+		B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalTransport.swift; sourceTree = "<group>"; };
 		CC0ED133E826C7002955649F /* DockNetUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DockNetUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E5359A77CF9B4BDFF62C28A3 /* NetworkMonitoringProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitoringProtocol.swift; sourceTree = "<group>"; };
 		F7421293B8DC0C45786156BA /* DockNetLiveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetLiveUITests.swift; sourceTree = "<group>"; };
@@ -117,6 +119,7 @@
 				36CA828CDCC85D4749341C38 /* EthernetHealthState.swift */,
 				44F2B2931793D7718CCADB48 /* NetworkInterfaceInfo.swift */,
 				50CF48EAABFCAC9495CF0C49 /* NetworkSnapshot.swift */,
+				B4E6192EBBD356A641DC57FB /* PhysicalTransport.swift */,
 				A1C295C4F0D07A99D1041B84 /* WiredInterfaceState.swift */,
 			);
 			path = Model;
@@ -331,6 +334,7 @@
 				537DBE156587AE8C0BAD0227 /* NetworkStateMachine.swift in Sources */,
 				0BD3E4F6E562713BDA1BE38F /* NotificationManager.swift in Sources */,
 				F0AEFF3CB6A7B3CF641C3750 /* PathMonitor.swift in Sources */,
+				1713D79BF84C6DAFCD650235 /* PhysicalTransport.swift in Sources */,
 				3E232FAFCBEE1193C4976AF6 /* ServiceOrderDiscovery.swift in Sources */,
 				1BB54FCE33A8118B4589A4DD /* StatusViewModel.swift in Sources */,
 				9156F4B359626D121CFFB9F4 /* SystemConfigurationMonitor.swift in Sources */,

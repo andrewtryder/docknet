@@ -2,14 +2,21 @@ import Foundation
 import os
 
 /// Pure state machine that evaluates network snapshots, derives health for each wired interface,
-/// determines the preferred wired interface based on macOS service order, and emits deduplicated transition events.
+/// determines the preferred wired interface based on macOS service order, tracks physical transport
+/// independent of overlays/VPNs, and emits deduplicated transition events.
 public final class NetworkStateMachine: @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.local.DockNet", category: "NetworkStateMachine")
 
     public enum TransitionEvent: Equatable, Sendable, CustomStringConvertible {
         case ethernetStateChanged(bsdName: String, from: EthernetHealthState, to: EthernetHealthState)
         case preferredWiredChanged(from: String?, to: String?)
-        case primaryPathChanged(from: String?, to: String?)
+        case physicalPrimaryChanged(from: String?, to: String?)
+        case systemPrimaryChanged(from: String?, to: String?)
+
+        // Backward compatibility
+        public static func primaryPathChanged(from: String?, to: String?) -> TransitionEvent {
+            .physicalPrimaryChanged(from: from, to: to)
+        }
 
         public var description: String {
             switch self {
@@ -19,10 +26,14 @@ public final class NetworkStateMachine: @unchecked Sendable {
                 let fromStr = from ?? "none"
                 let toStr = to ?? "none"
                 return "preferred wired interface \(fromStr) -> \(toStr)"
-            case .primaryPathChanged(let from, let to):
+            case .physicalPrimaryChanged(let from, let to):
                 let fromStr = from ?? "none"
                 let toStr = to ?? "none"
-                return "primary path \(fromStr) -> \(toStr)"
+                return "physical primary \(fromStr) -> \(toStr)"
+            case .systemPrimaryChanged(let from, let to):
+                let fromStr = from ?? "none"
+                let toStr = to ?? "none"
+                return "system primary \(fromStr) -> \(toStr)"
             }
         }
     }
@@ -30,21 +41,35 @@ public final class NetworkStateMachine: @unchecked Sendable {
     private let lock = NSLock()
     private var _interfaceHealthMap: [String: EthernetHealthState] = [:]
     private var _preferredWiredBSD: String? = nil
-    private var _currentPrimaryInterface: String? = nil
+    private var _currentPhysicalPrimaryBSD: String? = nil
+    private var _currentSystemPrimaryInterface: String? = nil
     private var _lastSnapshot: NetworkSnapshot? = nil
 
     public init(
-        initialPrimaryInterface: String? = nil,
-        initialPreferredWired: String? = nil
+        initialPhysicalPrimary: String? = nil,
+        initialPreferredWired: String? = nil,
+        initialPrimaryInterface: String? = nil
     ) {
-        self._currentPrimaryInterface = initialPrimaryInterface
+        let primary = initialPhysicalPrimary ?? initialPrimaryInterface
+        self._currentPhysicalPrimaryBSD = primary
         self._preferredWiredBSD = initialPreferredWired
+        self._currentSystemPrimaryInterface = primary
+    }
+
+    public var currentPhysicalPrimaryBSD: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _currentPhysicalPrimaryBSD
     }
 
     public var currentPrimaryInterface: String? {
+        currentPhysicalPrimaryBSD
+    }
+
+    public var currentSystemPrimaryInterface: String? {
         lock.lock()
         defer { lock.unlock() }
-        return _currentPrimaryInterface
+        return _currentSystemPrimaryInterface
     }
 
     public var preferredWiredBSD: String? {
@@ -77,7 +102,6 @@ public final class NetworkStateMachine: @unchecked Sendable {
         }
 
         guard let ip = ipv4Address, !ip.isEmpty, ip != "0.0.0.0" else {
-            // Link is active, but no IP yet
             if previousState == .disconnected {
                 return .linkUp
             } else {
@@ -96,23 +120,25 @@ public final class NetworkStateMachine: @unchecked Sendable {
             return .degraded
         }
 
-        // If router/gateway is present and non-empty, it is ready
         if let gateway = router, !gateway.isEmpty {
             return .ready
         } else {
-            // Has an IP but no gateway router yet -> incomplete DHCP negotiation
             return .obtainingDHCP
         }
     }
 
     /// Evaluates an array of discovered wired interfaces, updating health and selecting the preferred interface.
+    /// `isPrimary` is evaluated against the physicalPrimaryInterface (not raw VPN tunnel).
     public func evaluateWiredInterfaces(
         from interfaces: [NetworkInterfaceInfo],
+        physicalPrimaryInterface: String? = nil,
         primaryInterface: String? = nil,
         linkSpeedDetector: (any LinkSpeedDetecting)? = nil
     ) -> [WiredInterfaceState] {
         lock.lock()
         defer { lock.unlock() }
+
+        let activePhysical = physicalPrimaryInterface ?? primaryInterface
 
         var evaluated: [WiredInterfaceState] = []
 
@@ -137,7 +163,7 @@ public final class NetworkStateMachine: @unchecked Sendable {
             }
 
             let speed = iface.isLinkActive ? linkSpeedDetector?.detectLinkSpeed(for: iface.bsdName) : nil
-            let isPrimary = (primaryInterface != nil && primaryInterface == iface.bsdName)
+            let isPrimary = (activePhysical != nil && activePhysical == iface.bsdName)
 
             let state = WiredInterfaceState(
                 serviceID: iface.serviceID ?? iface.bsdName,
@@ -219,13 +245,22 @@ public final class NetworkStateMachine: @unchecked Sendable {
             _preferredWiredBSD = newPreferred
         }
 
-        // 3. Process primary path changes
-        let newPrimary = snapshot.primaryInterface
-        if newPrimary != _currentPrimaryInterface {
-            let event = TransitionEvent.primaryPathChanged(from: _currentPrimaryInterface, to: newPrimary)
+        // 3. Process physical primary changes (authoritative physical transport)
+        let newPhysical = snapshot.physicalPrimaryInterface
+        if newPhysical != _currentPhysicalPrimaryBSD {
+            let event = TransitionEvent.physicalPrimaryChanged(from: _currentPhysicalPrimaryBSD, to: newPhysical)
             events.append(event)
             Self.logger.info("\(event.description, privacy: .public)")
-            _currentPrimaryInterface = newPrimary
+            _currentPhysicalPrimaryBSD = newPhysical
+        }
+
+        // 4. Process raw system primary changes (informational)
+        let newSystem = snapshot.systemPrimaryInterface
+        if newSystem != _currentSystemPrimaryInterface {
+            let event = TransitionEvent.systemPrimaryChanged(from: _currentSystemPrimaryInterface, to: newSystem)
+            events.append(event)
+            Self.logger.debug("\(event.description, privacy: .public)")
+            _currentSystemPrimaryInterface = newSystem
         }
 
         _lastSnapshot = snapshot
@@ -237,7 +272,8 @@ public final class NetworkStateMachine: @unchecked Sendable {
         defer { lock.unlock() }
         _interfaceHealthMap.removeAll()
         _preferredWiredBSD = nil
-        _currentPrimaryInterface = nil
+        _currentPhysicalPrimaryBSD = nil
+        _currentSystemPrimaryInterface = nil
         _lastSnapshot = nil
     }
 }

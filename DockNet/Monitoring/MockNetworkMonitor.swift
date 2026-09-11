@@ -379,6 +379,102 @@ public final class MockNetworkMonitor: NetworkMonitoringProtocol, @unchecked Sen
                 globalIPv4Router: "192.168.88.1"
             )
 
+        case "vpnOverEthernet":
+            let wiredEn6 = WiredInterfaceState(
+                serviceID: "LAN-EN6-ID",
+                serviceName: "USB 10/100/1G/2.5G LAN",
+                bsdName: "en6",
+                enabled: true,
+                serviceOrder: 1,
+                linkActive: true,
+                ipv4Address: "192.168.88.160",
+                subnetMask: "255.255.255.0",
+                gateway: "192.168.88.1",
+                health: .ready,
+                isPreferred: true,
+                isPrimary: true,
+                linkSpeed: "2.5 Gbps Full Duplex",
+                isHardwarePresent: true
+            )
+            return NetworkSnapshot(
+                wiredInterfaces: [wiredEn6],
+                wifi: wifi,
+                systemPrimaryInterface: "utun5",
+                systemPrimaryServiceID: "TAILSCALE-TUNNEL-ID",
+                systemPrimaryServiceName: "Tailscale",
+                physicalTransport: PhysicalTransport(
+                    kind: .ethernet,
+                    bsdName: "en6",
+                    serviceName: "USB 10/100/1G/2.5G LAN",
+                    ipv4Address: "192.168.88.160"
+                ),
+                globalIPv4Router: "192.168.88.1"
+            )
+
+        case "vpnOverWifi":
+            let wiredEn8 = WiredInterfaceState(
+                serviceID: "LAN-EN8-ID",
+                serviceName: "USB 10/100/1000 LAN",
+                bsdName: "en8",
+                enabled: true,
+                serviceOrder: 1,
+                linkActive: false,
+                ipv4Address: nil,
+                subnetMask: nil,
+                gateway: nil,
+                health: .adapterNotPresent,
+                isPreferred: false,
+                isPrimary: false,
+                linkSpeed: nil,
+                isHardwarePresent: false
+            )
+            return NetworkSnapshot(
+                wiredInterfaces: [wiredEn8],
+                wifi: wifi,
+                systemPrimaryInterface: "utun5",
+                systemPrimaryServiceID: "TAILSCALE-TUNNEL-ID",
+                systemPrimaryServiceName: "Tailscale",
+                physicalTransport: PhysicalTransport(
+                    kind: .wifi,
+                    bsdName: "en0",
+                    serviceName: "Wi-Fi",
+                    ipv4Address: "192.168.88.148"
+                ),
+                globalIPv4Router: "192.168.88.1"
+            )
+
+        case "vpnIdentityChange":
+            let wiredEn6 = WiredInterfaceState(
+                serviceID: "LAN-EN6-ID",
+                serviceName: "USB 10/100/1G/2.5G LAN",
+                bsdName: "en6",
+                enabled: true,
+                serviceOrder: 1,
+                linkActive: true,
+                ipv4Address: "192.168.88.160",
+                subnetMask: "255.255.255.0",
+                gateway: "192.168.88.1",
+                health: .ready,
+                isPreferred: true,
+                isPrimary: true,
+                linkSpeed: "2.5 Gbps Full Duplex",
+                isHardwarePresent: true
+            )
+            return NetworkSnapshot(
+                wiredInterfaces: [wiredEn6],
+                wifi: wifi,
+                systemPrimaryInterface: "utun7",
+                systemPrimaryServiceID: "TAILSCALE-TUNNEL-ID",
+                systemPrimaryServiceName: "Tailscale",
+                physicalTransport: PhysicalTransport(
+                    kind: .ethernet,
+                    bsdName: "en6",
+                    serviceName: "USB 10/100/1G/2.5G LAN",
+                    ipv4Address: "192.168.88.160"
+                ),
+                globalIPv4Router: "192.168.88.1"
+            )
+
         default:
             return makeSnapshot(for: "wifi")
         }

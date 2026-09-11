@@ -268,28 +268,25 @@ public final class NotificationManager: @unchecked Sendable {
     }
 
     private static func extractPrimaryConnection(from snapshot: NetworkSnapshot) -> PrimaryConnection {
-        if snapshot.actualPrimaryIsWired, let wired = snapshot.activePrimaryWiredInterface {
+        switch snapshot.physicalTransport.kind {
+        case .ethernet:
+            let bsd = snapshot.physicalTransport.bsdName ?? "ethernet"
+            let name = snapshot.physicalTransport.serviceName ?? snapshot.activePrimaryWiredInterface?.serviceName ?? "Ethernet"
+            let ip = snapshot.physicalTransport.ipv4Address ?? snapshot.activePrimaryWiredInterface?.ipv4Address
             return PrimaryConnection(
                 type: .ethernet,
-                serviceName: wired.serviceName,
-                bsdName: wired.bsdName,
-                ipv4Address: wired.ipv4Address
+                serviceName: name,
+                bsdName: bsd,
+                ipv4Address: ip
             )
-        } else if snapshot.isWifiPrimary {
+        case .wifi:
             return PrimaryConnection(
                 type: .wifi,
                 serviceName: snapshot.wifi.serviceName,
                 bsdName: snapshot.wifi.bsdName,
                 ipv4Address: snapshot.wifi.primaryIPv4Address
             )
-        } else if let primaryBSD = snapshot.primaryInterface, !primaryBSD.isEmpty {
-            return PrimaryConnection(
-                type: .other,
-                serviceName: snapshot.primaryServiceName,
-                bsdName: primaryBSD,
-                ipv4Address: nil
-            )
-        } else {
+        case .none:
             return PrimaryConnection(
                 type: .none,
                 serviceName: nil,
