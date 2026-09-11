@@ -55,17 +55,11 @@ public struct AboutView: View {
                 .padding(.horizontal, 24)
 
             // Author Credit
-            VStack(spacing: 2) {
-                Text("Created by Andrew Ryder")
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .accessibilityIdentifier("docknet.about.author")
-                    .accessibilityLabel("Created by Andrew Ryder")
-
-                Text("Creator")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            Text("Andrew Ryder")
+                .font(.body)
+                .fontWeight(.medium)
+                .accessibilityIdentifier("docknet.about.author")
+                .accessibilityLabel("Andrew Ryder")
 
             // GitHub Link & Button
             VStack(spacing: 6) {

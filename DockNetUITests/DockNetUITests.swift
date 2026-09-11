@@ -316,7 +316,7 @@ final class DockNetUITests: XCTestCase {
 
         let author = aboutWindow.staticTexts["docknet.about.author"]
         XCTAssertTrue(author.waitForExistence(timeout: 5.0))
-        XCTAssertEqual(textValue(of: author), "Created by Andrew Ryder")
+        XCTAssertEqual(textValue(of: author), "Andrew Ryder")
 
         let version = aboutWindow.staticTexts["docknet.about.version"]
         XCTAssertTrue(version.waitForExistence(timeout: 5.0))
