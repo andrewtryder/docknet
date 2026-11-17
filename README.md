@@ -147,7 +147,7 @@ make install-hooks
 
 The hook checks staged Swift files with both tools. It requires fully staged Swift files; format them with `swiftformat <file>` before committing. XcodeGen and xcbeautify are optional development tools.
 
-Release Please opens release pull requests from conventional commits. It is configured to target 2.1.0 first; remove `release-as` from `release-please-config.json` after that release to resume automatic version selection. GitHub Actions must be allowed to create pull requests in the repository settings.
+Release Please opens release pull requests from conventional commits. It selects future versions automatically from those commits. GitHub Actions must be allowed to create pull requests in the repository settings.
 
 ### Signing
 
