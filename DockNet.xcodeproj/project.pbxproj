@@ -446,7 +446,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.0.0; /* x-release-please-version */
+				MARKETING_VERSION = 2.1.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNet;
 				PRODUCT_NAME = DockNet;
 				SDKROOT = macosx;
@@ -692,7 +692,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.0.0; /* x-release-please-version */
+				MARKETING_VERSION = 2.1.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = com.andrewtryder.DockNet;
 				PRODUCT_NAME = DockNet;
 				SDKROOT = macosx;
