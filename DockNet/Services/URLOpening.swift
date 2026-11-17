@@ -1,9 +1,9 @@
-import Foundation
 import AppKit
+import Foundation
 
 /// Protocol abstracting system URL opening to allow deterministic testing without launching web browsers.
 public protocol URLOpening: Sendable {
-    @discardableResult
+    @MainActor @discardableResult
     func open(_ url: URL) -> Bool
 }
 
@@ -11,13 +11,13 @@ public protocol URLOpening: Sendable {
 public struct WorkspaceURLOpener: URLOpening {
     public init() {}
 
-    @discardableResult
+    @MainActor @discardableResult
     public func open(_ url: URL) -> Bool {
         NSWorkspace.shared.open(url)
     }
 }
 
-/// Mock URL opener for unit and UI automation testing.
+/// Mock URL opener for unit and UI automation testing. All stored URLs are protected by `lock`.
 public final class MockURLOpener: @unchecked Sendable, URLOpening {
     private let lock = NSLock()
     private var _openedURLs: [URL] = []

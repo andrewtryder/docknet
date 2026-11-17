@@ -122,6 +122,13 @@ public final class DetailedStatusViewController: NSViewController {
 
         mainStack.addArrangedSubview(makeSeparator())
 
+        addPreferencesAndActions(to: mainStack)
+
+        // Initial snapshot populate
+        update(with: networkMonitor.currentSnapshot)
+    }
+
+    private func addPreferencesAndActions(to mainStack: NSStackView) {
         // 4. Preferences Section
         let notifyBtn = NSButton(
             checkboxWithTitle: "Notify on connection changes",
@@ -197,9 +204,6 @@ public final class DetailedStatusViewController: NSViewController {
         ))
 
         mainStack.addArrangedSubview(actionsStack)
-
-        // Initial snapshot populate
-        update(with: networkMonitor.currentSnapshot)
     }
 
     // MARK: - Snapshot Population
@@ -303,7 +307,6 @@ public final class DetailedStatusViewController: NSViewController {
 
     @objc private func styleSegmentedChanged(_ sender: NSSegmentedControl) {
         let newStyle: PresentationStyle = (sender.selectedSegment == 0) ? .compact : .detailed
-        presentationPreferences.style = newStyle
         onStyleChanged(newStyle)
     }
 

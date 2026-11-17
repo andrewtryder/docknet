@@ -7,6 +7,7 @@ public enum PresentationStyle: String, CaseIterable, Sendable {
 }
 
 /// Lightweight owner and coordinator for user presentation style preferences.
+/// UserDefaults provides thread-safe access; this object has no other mutable state.
 public final class PresentationPreferences: @unchecked Sendable {
     public static let userDefaultsKey = "docknet.presentation.style"
 
@@ -20,7 +21,8 @@ public final class PresentationPreferences: @unchecked Sendable {
     public var style: PresentationStyle {
         get {
             guard let raw = defaults.string(forKey: Self.userDefaultsKey),
-                  let parsed = PresentationStyle(rawValue: raw) else {
+                  let parsed = PresentationStyle(rawValue: raw)
+            else {
                 return .compact
             }
             return parsed

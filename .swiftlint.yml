@@ -1,6 +1,8 @@
 excluded:
   - build
   - .build
-function_body_length:
-  warning: 100
-  error: 400
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - trailing_whitespace
+  - vertical_whitespace

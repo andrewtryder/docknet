@@ -9,6 +9,7 @@ settings:
   base:
     MACOSX_DEPLOYMENT_TARGET: '13.0'
     SWIFT_VERSION: '5.0'
+    SWIFT_STRICT_CONCURRENCY: complete
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: '-'
     DEVELOPMENT_TEAM: ''

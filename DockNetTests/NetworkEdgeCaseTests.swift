@@ -183,19 +183,19 @@ final class NetworkEdgeCaseTests: XCTestCase {
     /// 30. Pure link speed formatter tests
     func testLinkSpeedFormattingPureFunction() {
         // 1 Gbps Full Duplex: subtype 16 (IFM_1000_T), IFM_ETHER (0x20), IFM_FDX (0x00100000)
-        let word1G = DarwinIfMediaCompatibility.IFM_ETHER | 16 | DarwinIfMediaCompatibility.IFM_FDX
+        let word1G = DarwinIfMediaCompatibility.ethernet | 16 | DarwinIfMediaCompatibility.fullDuplex
         XCTAssertEqual(LinkSpeedDetector.formatLinkSpeed(activeWord: word1G), "1 Gbps Full Duplex")
 
         // 2.5 Gbps Full Duplex: subtype 22 (IFM_2500_T)
-        let word25G = DarwinIfMediaCompatibility.IFM_ETHER | 22 | DarwinIfMediaCompatibility.IFM_FDX
+        let word25G = DarwinIfMediaCompatibility.ethernet | 22 | DarwinIfMediaCompatibility.fullDuplex
         XCTAssertEqual(LinkSpeedDetector.formatLinkSpeed(activeWord: word25G), "2.5 Gbps Full Duplex")
 
         // 10 Gbps Full Duplex: subtype 21 (IFM_10G_T)
-        let word10G = DarwinIfMediaCompatibility.IFM_ETHER | 21 | DarwinIfMediaCompatibility.IFM_FDX
+        let word10G = DarwinIfMediaCompatibility.ethernet | 21 | DarwinIfMediaCompatibility.fullDuplex
         XCTAssertEqual(LinkSpeedDetector.formatLinkSpeed(activeWord: word10G), "10 Gbps Full Duplex")
 
         // 100 Mbps Half Duplex: subtype 6 (IFM_100_TX), no FDX
-        let word100MHalf = DarwinIfMediaCompatibility.IFM_ETHER | 6
+        let word100MHalf = DarwinIfMediaCompatibility.ethernet | 6
         XCTAssertEqual(LinkSpeedDetector.formatLinkSpeed(activeWord: word100MHalf), "100 Mbps Half Duplex")
 
         // Non-Ethernet media type -> nil
@@ -203,8 +203,72 @@ final class NetworkEdgeCaseTests: XCTestCase {
         XCTAssertNil(LinkSpeedDetector.formatLinkSpeed(activeWord: nonEther))
 
         // Unknown subtype -> nil
-        let unknownSubtype = DarwinIfMediaCompatibility.IFM_ETHER | 99
+        let unknownSubtype = DarwinIfMediaCompatibility.ethernet | 99
         XCTAssertNil(LinkSpeedDetector.formatLinkSpeed(activeWord: unknownSubtype))
+    }
+
+    func testWifiServiceSelectionHonorsEnabledAndServiceOrder() {
+        func wifi(_ id: String, _ enabled: Bool, _ order: Int?) -> ServiceOrderDiscovery.DiscoveredService {
+            ServiceOrderDiscovery.DiscoveredService(serviceID: id, serviceName: id, bsdName: "en0",
+                                                    interfaceType: "IEEE80211", enabled: enabled, serviceOrder: order)
+        }
+        XCTAssertTrue(ServiceOrderDiscovery.isPreferredWiFi(wifi("a", true, 2), over: wifi("b", true, 3)))
+        XCTAssertTrue(ServiceOrderDiscovery.isPreferredWiFi(wifi("b", true, 3), over: wifi("a", false, 1)))
+        XCTAssertFalse(ServiceOrderDiscovery.isPreferredWiFi(wifi("b", false, 1), over: wifi("a", true, 3)))
+        XCTAssertTrue(ServiceOrderDiscovery.isPreferredWiFi(wifi("a", true, nil), over: wifi("b", true, nil)))
+    }
+
+    func testSystemSelectedEthernetDoesNotRequireIPv4Gateway() {
+        let wifi = makeWifiInfo()
+        let ethernet = WiredInterfaceState(serviceID: "lan", serviceName: "Ethernet", bsdName: "en8",
+                                           enabled: true, linkActive: true, ipv4Address: "192.0.2.5",
+                                           health: .configured)
+        XCTAssertEqual(NetworkStateMachine.evaluateEthernetState(isLinkActive: true, ipv4Address: "192.0.2.5", router: nil), .configured)
+        let transport = PhysicalTransportResolver.resolve(systemPrimaryInterface: "en8",
+                                                          wiredInterfaces: [ethernet], wifi: wifi)
+        XCTAssertEqual(transport.bsdName, "en8")
+        XCTAssertEqual(transport.kind, .ethernet)
+        XCTAssertFalse(ethernet.isReady, "A selected route does not imply IPv4 gateway readiness")
+    }
+
+    func testDisabledWifiIsNotSelectedAsFallback() {
+        let wifi = NetworkInterfaceInfo(bsdName: "en0", serviceName: "Wi-Fi", enabled: false, isLinkActive: true)
+        XCTAssertEqual(PhysicalTransportResolver.resolve(systemPrimaryInterface: "utun0", wiredInterfaces: [], wifi: wifi), .none)
+    }
+
+    func testRemovedInterfaceDoesNotRetainHealthOnReconnect() {
+        let machine = NetworkStateMachine()
+        let wired = WiredInterfaceState(serviceID: "en8", serviceName: "Ethernet", bsdName: "en8",
+                                        linkActive: true, health: .ready)
+        let wifi = makeWifiInfo()
+        machine.process(snapshot: NetworkSnapshot(wiredInterfaces: [wired], wifi: wifi))
+        XCTAssertEqual(machine.health(for: "en8"), .ready)
+        machine.process(snapshot: NetworkSnapshot(wiredInterfaces: [], wifi: wifi))
+        XCTAssertEqual(machine.health(for: "en8"), .disconnected)
+        let reconnected = NetworkInterfaceInfo(bsdName: "en8", serviceName: "Ethernet", isLinkActive: true)
+        let freshHealth = NetworkStateMachine().evaluateWiredInterfaces(from: [reconnected]).first?.health
+        XCTAssertEqual(machine.evaluateWiredInterfaces(from: [reconnected]).first?.health, freshHealth)
+    }
+
+    func testLinkSpeedExtendedSubtypeEncoding() {
+        // IFM_X_SUBTYPE from the macOS SDK's net/if_media.h.
+        let cases: [(Int32, String?)] = [
+            (3, "10 Mbps"), (6, "100 Mbps"), (16, "1 Gbps"),
+            (22, "2.5 Gbps"), (23, "5 Gbps"), (21, "10 Gbps"),
+            (32, "2.5 Gbps"), (41, "1 Gbps"), (52, "100 Mbps"),
+            (59, "10 Gbps"), (62, "100 Mbps"), (64, "5 Gbps"),
+            (17, nil), (37, nil), (99, nil),
+        ]
+        for (subtype, expected) in cases {
+            let encoded = (subtype & 0x1F) | ((subtype & 0x1E0) << 11)
+            for fullDuplex in [false, true] {
+                let word = DarwinIfMediaCompatibility.ethernet | encoded
+                    | (fullDuplex ? DarwinIfMediaCompatibility.fullDuplex : 0)
+                let suffix = fullDuplex ? " Full Duplex" : " Half Duplex"
+                XCTAssertEqual(LinkSpeedDetector.formatLinkSpeed(activeWord: word), expected.map { $0 + suffix },
+                               "subtype \(subtype), full duplex \(fullDuplex)")
+            }
+        }
     }
 
     /// 31. ServiceOrderDiscovery exclusion helper tests

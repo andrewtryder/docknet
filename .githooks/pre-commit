@@ -1,17 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-for tool in swiftlint swiftformat; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "Error: $tool is required for the pre-commit hook." >&2
-        exit 1
-    fi
-done
+./scripts/install-quality-tools.sh
+swiftlint="$PWD/build/tools/bin/swiftlint"
+swiftformat="$PWD/build/tools/bin/swiftformat"
 while IFS= read -r -d "" file; do
     if ! git diff --quiet -- "$file"; then
         echo "Error: stage all changes to $file before committing." >&2
         exit 1
     fi
-    swiftformat --lint --swift-version 5.0 "$file"
-    swiftlint lint --quiet "$file"
+    "$swiftformat" --lint "$file"
+    "$swiftlint" lint --quiet "$file"
 done < <(git diff --cached --name-only --diff-filter=ACMR -z -- "*.swift")

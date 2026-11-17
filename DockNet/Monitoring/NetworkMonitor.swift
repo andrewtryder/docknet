@@ -1,8 +1,8 @@
 import Foundation
 import os
 
-/// Unified network monitor combining SystemConfiguration and Network.framework,
-/// feeding snapshots into the NetworkStateMachine.
+/// Monitors SystemConfiguration and feeds snapshots into the NetworkStateMachine.
+/// Snapshots arrive serially from the SC monitor; synchronous state and callback access use `lock`.
 public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NetworkMonitor")
 
@@ -11,14 +11,18 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
 
     private let lock = NSLock()
     private var _currentSnapshot: NetworkSnapshot
-    public var onSnapshotUpdated: (@Sendable (NetworkSnapshot) -> Void)?
+    private var callback: (@Sendable (NetworkSnapshot) -> Void)?
+    public var onSnapshotUpdated: (@Sendable (NetworkSnapshot) -> Void)? {
+        get { lock.lock(); defer { lock.unlock() }; return callback }
+        set { lock.lock(); defer { lock.unlock() }; callback = newValue }
+    }
 
     public init(stateMachine: NetworkStateMachine = NetworkStateMachine()) {
         self.stateMachine = stateMachine
-        self.scMonitor = SystemConfigurationMonitor(stateMachine: stateMachine)
+        scMonitor = SystemConfigurationMonitor(stateMachine: stateMachine)
 
         let emptyWifi = NetworkInterfaceInfo(bsdName: "en0", serviceName: "Wi-Fi", isLinkActive: false)
-        self._currentSnapshot = NetworkSnapshot(wiredInterfaces: [], wifi: emptyWifi)
+        _currentSnapshot = NetworkSnapshot(wiredInterfaces: [], wifi: emptyWifi)
 
         setupBindings()
     }
@@ -41,7 +45,6 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
         _currentSnapshot = snapshot
         lock.unlock()
 
-        stateMachine.process(snapshot: snapshot)
         onSnapshotUpdated?(snapshot)
     }
 

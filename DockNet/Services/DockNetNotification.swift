@@ -69,7 +69,7 @@ public struct NotificationFormatter: Sendable {
         let id = "docknet.primary-transition.\(sequence)"
 
         // Case 1: Wi-Fi -> Ethernet
-        if from.type == .wifi && to.type == .ethernet {
+        if from.type == .wifi, to.type == .ethernet {
             let sName = to.serviceName ?? "Ethernet"
             let ipPart = to.ipv4Address.map { " · \($0)" } ?? ""
             return DockNetNotification(
@@ -80,7 +80,7 @@ public struct NotificationFormatter: Sendable {
         }
 
         // Case 2: Ethernet -> Wi-Fi
-        if from.type == .ethernet && to.type == .wifi {
+        if from.type == .ethernet, to.type == .wifi {
             let ipPart = to.ipv4Address.map { " · \($0)" } ?? ""
             return DockNetNotification(
                 identifier: id,
@@ -90,7 +90,7 @@ public struct NotificationFormatter: Sendable {
         }
 
         // Case 3: Ethernet -> different Ethernet (e.g. en8 -> en6)
-        if from.type == .ethernet && to.type == .ethernet {
+        if from.type == .ethernet, to.type == .ethernet {
             let sName = to.serviceName ?? "Ethernet"
             let ipPart = to.ipv4Address.map { " · \($0)" } ?? ""
             return DockNetNotification(

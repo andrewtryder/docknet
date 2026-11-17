@@ -4,6 +4,7 @@ import os
 /// Pure state machine that evaluates network snapshots, derives health for each wired interface,
 /// determines the preferred wired interface based on macOS service order, tracks physical transport
 /// independent of overlays/VPNs, and emits deduplicated transition events.
+/// All mutable state is protected by `lock`.
 public final class NetworkStateMachine: @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NetworkStateMachine")
 
@@ -13,24 +14,24 @@ public final class NetworkStateMachine: @unchecked Sendable {
         case physicalPrimaryChanged(from: String?, to: String?)
         case systemPrimaryChanged(from: String?, to: String?)
 
-        // Backward compatibility
+        /// Backward compatibility
         public static func primaryPathChanged(from: String?, to: String?) -> TransitionEvent {
             .physicalPrimaryChanged(from: from, to: to)
         }
 
         public var description: String {
             switch self {
-            case .ethernetStateChanged(let bsdName, let from, let to):
+            case let .ethernetStateChanged(bsdName, from, to):
                 return "ethernet \(bsdName): \(from) -> \(to)"
-            case .preferredWiredChanged(let from, let to):
+            case let .preferredWiredChanged(from, to):
                 let fromStr = from ?? "none"
                 let toStr = to ?? "none"
                 return "preferred wired interface \(fromStr) -> \(toStr)"
-            case .physicalPrimaryChanged(let from, let to):
+            case let .physicalPrimaryChanged(from, to):
                 let fromStr = from ?? "none"
                 let toStr = to ?? "none"
                 return "physical primary \(fromStr) -> \(toStr)"
-            case .systemPrimaryChanged(let from, let to):
+            case let .systemPrimaryChanged(from, to):
                 let fromStr = from ?? "none"
                 let toStr = to ?? "none"
                 return "system primary \(fromStr) -> \(toStr)"
@@ -40,10 +41,10 @@ public final class NetworkStateMachine: @unchecked Sendable {
 
     private let lock = NSLock()
     private var _interfaceHealthMap: [String: EthernetHealthState] = [:]
-    private var _preferredWiredBSD: String? = nil
-    private var _currentPhysicalPrimaryBSD: String? = nil
-    private var _currentSystemPrimaryInterface: String? = nil
-    private var _lastSnapshot: NetworkSnapshot? = nil
+    private var _preferredWiredBSD: String?
+    private var _currentPhysicalPrimaryBSD: String?
+    private var _currentSystemPrimaryInterface: String?
+    private var _lastSnapshot: NetworkSnapshot?
 
     public init(
         initialPhysicalPrimary: String? = nil,
@@ -51,9 +52,9 @@ public final class NetworkStateMachine: @unchecked Sendable {
         initialPrimaryInterface: String? = nil
     ) {
         let primary = initialPhysicalPrimary ?? initialPrimaryInterface
-        self._currentPhysicalPrimaryBSD = primary
-        self._preferredWiredBSD = initialPreferredWired
-        self._currentSystemPrimaryInterface = primary
+        _currentPhysicalPrimaryBSD = primary
+        _preferredWiredBSD = initialPreferredWired
+        _currentSystemPrimaryInterface = primary
     }
 
     public var currentPhysicalPrimaryBSD: String? {
@@ -123,7 +124,7 @@ public final class NetworkStateMachine: @unchecked Sendable {
         if let gateway = router, !gateway.isEmpty {
             return .ready
         } else {
-            return .obtainingDHCP
+            return .configured
         }
     }
 
@@ -189,10 +190,12 @@ public final class NetworkStateMachine: @unchecked Sendable {
         // Determine preferred interface: first enabled && ready interface ordered by serviceOrder
         let readyInterfaces = evaluated
             .filter { $0.enabled && $0.health == .ready }
-            .sorted { (lhs, rhs) -> Bool in
+            .sorted { lhs, rhs -> Bool in
                 let o1 = lhs.serviceOrder ?? Int.max
                 let o2 = rhs.serviceOrder ?? Int.max
-                if o1 != o2 { return o1 < o2 }
+                if o1 != o2 {
+                    return o1 < o2
+                }
                 return lhs.bsdName < rhs.bsdName
             }
 
@@ -227,6 +230,10 @@ public final class NetworkStateMachine: @unchecked Sendable {
 
         var events: [TransitionEvent] = []
 
+        // Remove disappeared services so a later reconnect starts with fresh state.
+        let presentInterfaces = Set(snapshot.wiredInterfaces.map(\.bsdName))
+        _interfaceHealthMap = _interfaceHealthMap.filter { presentInterfaces.contains($0.key) }
+
         // 1. Process health changes per wired interface
         for iface in snapshot.wiredInterfaces {
             let prior = _interfaceHealthMap[iface.bsdName] ?? .disconnected
@@ -247,7 +254,7 @@ public final class NetworkStateMachine: @unchecked Sendable {
             _preferredWiredBSD = newPreferred
         }
 
-        // 3. Process physical primary changes (authoritative physical transport)
+        // 3. Process resolved physical primary changes (which may be inferred).
         let newPhysical = snapshot.physicalPrimaryInterface
         if newPhysical != _currentPhysicalPrimaryBSD {
             let event = TransitionEvent.physicalPrimaryChanged(from: _currentPhysicalPrimaryBSD, to: newPhysical)

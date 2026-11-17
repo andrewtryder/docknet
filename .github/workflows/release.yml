@@ -22,7 +22,7 @@ permissions:
 jobs:
   release:
     name: Build & Publish Release
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Resolve and Validate Tag
@@ -46,8 +46,11 @@ jobs:
           ref: ${{ steps.version.outputs.tag }}
           fetch-depth: 0
 
-      - name: Build Debug Application
-        run: make build
+      - name: Validate Xcode toolchain
+        run: |
+          xcodebuild -version
+          major=$(xcodebuild -version | awk '/^Xcode / { split($2, v, "."); print v[1] }')
+          test "$major" -ge 15
 
       - name: Run Unit Tests
         run: make test-unit

@@ -18,7 +18,7 @@ public struct NetworkSnapshot: Equatable, Sendable {
     /// The human-readable name of the system's global primary service.
     public let systemPrimaryServiceName: String?
 
-    /// The authoritative underlying physical network transport (Ethernet > Wi-Fi),
+    /// The resolved physical transport, inferred when an overlay obscures the route,
     /// completely isolated from VPNs, Tailscale, or tunnel overlays.
     public let physicalTransport: PhysicalTransport
 
@@ -74,7 +74,7 @@ public struct NetworkSnapshot: Equatable, Sendable {
             globalIPv4Router == other.globalIPv4Router
     }
 
-    /// The BSD name of the authoritative physical primary connection (e.g. "en6", "en0", or nil).
+    /// The BSD name of the resolved physical primary connection (e.g. "en6", "en0", or nil).
     public var physicalPrimaryInterface: String? {
         physicalTransport.bsdName
     }
@@ -102,9 +102,9 @@ public struct NetworkSnapshot: Equatable, Sendable {
     /// The preferred wired interface: the first healthy (ready) wired interface in macOS service order.
     public var preferredWiredInterface: WiredInterfaceState? {
         wiredInterfaces.first(where: { $0.isPreferred }) ??
-        wiredInterfaces
+            wiredInterfaces
             .filter { $0.enabled && $0.isReady }
-            .sorted { (lhs, rhs) -> Bool in
+            .sorted { lhs, rhs -> Bool in
                 (lhs.serviceOrder ?? Int.max) < (rhs.serviceOrder ?? Int.max)
             }
             .first

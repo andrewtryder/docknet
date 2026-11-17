@@ -2,99 +2,115 @@ import Foundation
 import os
 
 /// Deterministic network monitor for UI tests and mock simulations.
+/// Mutations and delivery use separate serial queues; the lock protects shared reads and delivery tokens.
 public final class MockNetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "MockNetworkMonitor")
-
     private let lock = NSLock()
+    private let queue = DispatchQueue(label: "com.andrewtryder.docknet.mockwatcher", qos: .utility)
+    private let deliveryQueue = DispatchQueue(label: "com.andrewtryder.docknet.mock-delivery", qos: .utility)
+    private let queueKey = DispatchSpecificKey<Bool>()
+    private var deliveryGeneration: UInt64 = 0
     private var _currentSnapshot: NetworkSnapshot
-    private var isMonitoring: Bool = false
-    private var fileWatcherSource: DispatchSourceFileSystemObject?
+    private var callback: (@Sendable (NetworkSnapshot) -> Void)?
+    private var isMonitoring = false
     private var timerSource: DispatchSourceTimer?
     private let stateFilePath: String?
 
-    public var onSnapshotUpdated: (@Sendable (NetworkSnapshot) -> Void)?
+    public var onSnapshotUpdated: (@Sendable (NetworkSnapshot) -> Void)? {
+        get { lock.lock(); defer { lock.unlock() }; return callback }
+        set { lock.lock(); defer { lock.unlock() }; callback = newValue }
+    }
 
     public init(scenario: String = "wifi", stateFilePath: String? = nil) {
         self.stateFilePath = stateFilePath
         _currentSnapshot = Self.makeSnapshot(for: scenario)
+        queue.setSpecific(key: queueKey, value: true)
+    }
+
+    deinit { stopMonitoring() }
+
+    private func onQueue(_ operation: () -> Void) {
+        if DispatchQueue.getSpecific(key: queueKey) != nil {
+            operation()
+        } else {
+            queue.sync(execute: operation)
+        }
     }
 
     public var currentSnapshot: NetworkSnapshot {
-        lock.lock()
-        defer { lock.unlock() }
-        return _currentSnapshot
+        lock.lock(); defer { lock.unlock() }; return _currentSnapshot
     }
 
     public func setSnapshot(_ snapshot: NetworkSnapshot) {
-        lock.lock()
-        _currentSnapshot = snapshot
-        lock.unlock()
-
-        Self.logger.info("MockNetworkMonitor snapshot updated manually")
-        onSnapshotUpdated?(snapshot)
+        onQueue {
+            lock.lock()
+            _currentSnapshot = snapshot
+            lock.unlock()
+            deliver(snapshot)
+        }
     }
 
     public func setScenario(_ scenario: String) {
-        let snapshot = Self.makeSnapshot(for: scenario)
-        setSnapshot(snapshot)
+        setSnapshot(Self.makeSnapshot(for: scenario))
     }
 
     public func startMonitoring() {
-        lock.lock()
-        guard !isMonitoring else {
-            lock.unlock()
-            return
+        onQueue {
+            guard !isMonitoring else { return }
+            isMonitoring = true
+            advanceDeliveryGeneration()
+            if let path = stateFilePath {
+                setupFileWatcher(at: path)
+            }
+            deliver(currentSnapshot)
         }
-        isMonitoring = true
-        lock.unlock()
-
-        Self.logger.info("MockNetworkMonitor started")
-
-        // If a state file path is provided, watch it for live dynamic transitions
-        if let path = stateFilePath {
-            setupFileWatcher(at: path)
-        }
-
-        // Fire initial snapshot
-        let initial = currentSnapshot
-        onSnapshotUpdated?(initial)
     }
 
     public func stopMonitoring() {
-        lock.lock()
-        guard isMonitoring else {
-            lock.unlock()
-            return
+        onQueue {
+            isMonitoring = false
+            advanceDeliveryGeneration()
+            timerSource?.cancel()
+            timerSource = nil
         }
-        isMonitoring = false
-        fileWatcherSource?.cancel()
-        fileWatcherSource = nil
-        timerSource?.cancel()
-        timerSource = nil
-        lock.unlock()
-
-        Self.logger.info("MockNetworkMonitor stopped")
     }
 
     public func refresh() {
-        if let path = stateFilePath, let content = try? String(contentsOfFile: path, encoding: .utf8) {
-            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-            setScenario(trimmed)
-        } else {
-            let current = currentSnapshot
-            onSnapshotUpdated?(current)
+        onQueue {
+            if let path = stateFilePath, let content = try? String(contentsOfFile: path, encoding: .utf8) {
+                setScenario(content.trimmingCharacters(in: .whitespacesAndNewlines))
+            } else {
+                deliver(currentSnapshot)
+            }
+        }
+    }
+
+    private func advanceDeliveryGeneration() {
+        lock.lock()
+        deliveryGeneration &+= 1
+        lock.unlock()
+    }
+
+    private func deliver(_ snapshot: NetworkSnapshot) {
+        lock.lock()
+        let generation = deliveryGeneration
+        lock.unlock()
+        deliveryQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.lock.lock()
+            let handler = self.deliveryGeneration == generation ? self.callback : nil
+            self.lock.unlock()
+            handler?(snapshot)
         }
     }
 
     private func setupFileWatcher(at path: String) {
-        // Poll every 100ms for state file changes in UI testing mode
-        let queue = DispatchQueue(label: "com.andrewtryder.docknet.mockwatcher", qos: .utility)
         let timer = DispatchSource.makeTimerSource(queue: queue)
         var lastContent = ""
-
         timer.schedule(deadline: .now(), repeating: .milliseconds(100))
         timer.setEventHandler { [weak self] in
-            guard let self = self, let content = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+            guard let self = self, self.isMonitoring,
+                  let content = try? String(contentsOfFile: path, encoding: .utf8) else { return }
             let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed != lastContent, !trimmed.isEmpty {
                 lastContent = trimmed
@@ -102,7 +118,7 @@ public final class MockNetworkMonitor: NetworkMonitoringProtocol, @unchecked Sen
                 self.setScenario(trimmed)
             }
         }
-        timer.resume()
         timerSource = timer
+        timer.resume()
     }
 }

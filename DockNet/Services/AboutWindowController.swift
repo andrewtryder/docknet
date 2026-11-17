@@ -8,7 +8,7 @@ public final class AboutWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     public var urlOpener: any URLOpening = WorkspaceURLOpener()
 
-    private override init() {
+    override private init() {
         super.init()
     }
 
@@ -41,13 +41,13 @@ public final class AboutWindowController: NSObject, NSWindowDelegate {
         newWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
         newWindow.standardWindowButton(.zoomButton)?.isHidden = true
 
-        self.window = newWindow
+        window = newWindow
 
         newWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    public func windowWillClose(_ notification: Notification) {
-        self.window = nil
+    public func windowWillClose(_: Notification) {
+        window = nil
     }
 }

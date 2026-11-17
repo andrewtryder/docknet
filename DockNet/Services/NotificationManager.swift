@@ -1,6 +1,6 @@
 import Foundation
-import UserNotifications
 import os
+import UserNotifications
 
 /// Protocol abstracting notification scheduling for full unit testability.
 public protocol NotificationScheduling: Sendable {
@@ -46,16 +46,34 @@ public struct UserNotificationsScheduler: NotificationScheduling {
     }
 }
 
-/// Mock notification scheduler for unit and UI automation testing.
+/// Mock notification scheduler for unit and UI automation testing. All mutable state is guarded by `lock`.
 public final class MockNotificationScheduler: @unchecked Sendable, NotificationScheduling {
     private let lock = NSLock()
-    public var stubbedAuthStatus: UNAuthorizationStatus = .notDetermined
-    public var stubbedRequestAuthResult: Bool = true
-    public private(set) var sentNotifications: [DockNetNotification] = []
-    public private(set) var requestAuthorizationCallCount: Int = 0
+    private var _authStatus: UNAuthorizationStatus
+    private var _requestAuthResult = true
+    private var _sentNotifications: [DockNetNotification] = []
+    private var _requestCount = 0
+
+    public var stubbedAuthStatus: UNAuthorizationStatus {
+        get { lock.lock(); defer { lock.unlock() }; return _authStatus }
+        set { lock.lock(); defer { lock.unlock() }; _authStatus = newValue }
+    }
+
+    public var stubbedRequestAuthResult: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _requestAuthResult }
+        set { lock.lock(); defer { lock.unlock() }; _requestAuthResult = newValue }
+    }
+
+    public var sentNotifications: [DockNetNotification] {
+        lock.lock(); defer { lock.unlock() }; return _sentNotifications
+    }
+
+    public var requestAuthorizationCallCount: Int {
+        lock.lock(); defer { lock.unlock() }; return _requestCount
+    }
 
     public init(status: UNAuthorizationStatus = .notDetermined) {
-        self.stubbedAuthStatus = status
+        _authStatus = status
     }
 
     public func requestAuthorization() async -> Bool {
@@ -65,11 +83,11 @@ public final class MockNotificationScheduler: @unchecked Sendable, NotificationS
     private func recordRequestAuthorization() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        requestAuthorizationCallCount += 1
-        if stubbedRequestAuthResult {
-            stubbedAuthStatus = .authorized
+        _requestCount += 1
+        if _requestAuthResult {
+            _authStatus = .authorized
         }
-        return stubbedRequestAuthResult
+        return _requestAuthResult
     }
 
     public func authorizationStatus() async -> UNAuthorizationStatus {
@@ -77,9 +95,7 @@ public final class MockNotificationScheduler: @unchecked Sendable, NotificationS
     }
 
     private func getAuthStatus() -> UNAuthorizationStatus {
-        lock.lock()
-        defer { lock.unlock() }
-        return stubbedAuthStatus
+        lock.lock(); defer { lock.unlock() }; return _authStatus
     }
 
     public func send(_ notification: DockNetNotification) async {
@@ -87,20 +103,19 @@ public final class MockNotificationScheduler: @unchecked Sendable, NotificationS
     }
 
     private func recordNotification(_ notification: DockNetNotification) {
-        lock.lock()
-        defer { lock.unlock() }
-        sentNotifications.append(notification)
+        lock.lock(); defer { lock.unlock() }; _sentNotifications.append(notification)
     }
 
     public func reset() {
         lock.lock()
         defer { lock.unlock() }
-        sentNotifications.removeAll()
-        requestAuthorizationCallCount = 0
+        _sentNotifications.removeAll()
+        _requestCount = 0
     }
 }
 
 /// Coordinates notification preferences, authorization states, debounce, deduplication, and scheduling.
+/// Transition state is guarded by `lock`; preferences use thread-safe UserDefaults.
 public final class NotificationManager: @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "NotificationManager")
 
@@ -110,9 +125,10 @@ public final class NotificationManager: @unchecked Sendable {
     public let userDefaults: UserDefaults
 
     private let lock = NSLock()
-    private var _stablePrimary: PrimaryConnection? = nil
-    private var _pendingCandidate: PrimaryConnection? = nil
+    private var _stablePrimary: PrimaryConnection?
+    private var _pendingCandidate: PrimaryConnection?
     private var _debounceGeneration: UInt64 = 0
+    private var _preferenceGeneration: UInt64 = 0
     private var _sequenceCounter: Int = 0
     private let debounceInterval: TimeInterval
     private let queue = DispatchQueue(label: "com.andrewtryder.docknet.notifications", qos: .utility)
@@ -132,7 +148,14 @@ public final class NotificationManager: @unchecked Sendable {
             userDefaults.bool(forKey: Self.preferenceKey)
         }
         set {
+            lock.lock()
+            _preferenceGeneration &+= 1
+            if userDefaults.bool(forKey: Self.preferenceKey) != newValue {
+                _debounceGeneration &+= 1
+                _pendingCandidate = nil
+            }
             userDefaults.set(newValue, forKey: Self.preferenceKey)
+            lock.unlock()
         }
     }
 
@@ -142,31 +165,43 @@ public final class NotificationManager: @unchecked Sendable {
         return _stablePrimary
     }
 
+    private func beginPreferenceChange(enabled: Bool) -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        _preferenceGeneration &+= 1
+        if !enabled {
+            _debounceGeneration &+= 1
+            _pendingCandidate = nil
+            userDefaults.set(false, forKey: Self.preferenceKey)
+        }
+        return _preferenceGeneration
+    }
+
+    private func finishPreferenceChange(enabled: Bool, generation: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard _preferenceGeneration == generation else { return }
+        if userDefaults.bool(forKey: Self.preferenceKey) != enabled {
+            _debounceGeneration &+= 1
+            _pendingCandidate = nil
+        }
+        userDefaults.set(enabled, forKey: Self.preferenceKey)
+    }
+
     /// Sets user preference, requesting authorization if enabling for the first time.
     @discardableResult
     public func setPreferenceEnabled(_ enabled: Bool) async -> UNAuthorizationStatus {
-        if enabled {
-            let currentStatus = await scheduler.authorizationStatus()
-            if currentStatus == .notDetermined {
-                let granted = await scheduler.requestAuthorization()
-                if granted {
-                    isPreferenceEnabled = true
-                    return .authorized
-                } else {
-                    isPreferenceEnabled = false
-                    return .denied
-                }
-            } else if currentStatus == .denied {
-                isPreferenceEnabled = false
-                return .denied
-            } else {
-                isPreferenceEnabled = true
-                return currentStatus
-            }
+        let generation = beginPreferenceChange(enabled: enabled)
+        let status = await scheduler.authorizationStatus()
+        guard enabled else { return status }
+        let resolvedStatus: UNAuthorizationStatus
+        if status == .notDetermined {
+            resolvedStatus = await scheduler.requestAuthorization() ? .authorized : .denied
         } else {
-            isPreferenceEnabled = false
-            return await scheduler.authorizationStatus()
+            resolvedStatus = status
         }
+        finishPreferenceChange(enabled: resolvedStatus != .denied, generation: generation)
+        return resolvedStatus
     }
 
     /// Processes an updated network snapshot with debounce and deduplication.
@@ -213,10 +248,11 @@ public final class NotificationManager: @unchecked Sendable {
             let transition = ConnectionTransition(from: stable, to: currentPrimary)
             _sequenceCounter += 1
             let seq = _sequenceCounter
+            let generation = _debounceGeneration
             lock.unlock()
 
             Task { [weak self] in
-                await self?.evaluateAndSend(transition: transition, sequence: seq)
+                await self?.evaluateAndSend(transition: transition, sequence: seq, generation: generation)
             }
             return
         }
@@ -246,12 +282,18 @@ public final class NotificationManager: @unchecked Sendable {
 
             let transition = ConnectionTransition(from: from, to: candidate)
             Task {
-                await self.evaluateAndSend(transition: transition, sequence: seq)
+                await self.evaluateAndSend(transition: transition, sequence: seq, generation: generation)
             }
         }
     }
 
-    private func evaluateAndSend(transition: ConnectionTransition, sequence: Int) async {
+    private func isCurrent(generation: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _debounceGeneration == generation && isPreferenceEnabled
+    }
+
+    private func evaluateAndSend(transition: ConnectionTransition, sequence: Int, generation: UInt64) async {
         guard isPreferenceEnabled else {
             Self.logger.debug("Transition ignored: notifications preference is disabled")
             return
@@ -263,7 +305,9 @@ public final class NotificationManager: @unchecked Sendable {
             return
         }
 
-        guard let notification = NotificationFormatter.format(transition: transition, sequence: sequence) else {
+        guard isCurrent(generation: generation),
+              let notification = NotificationFormatter.format(transition: transition, sequence: sequence)
+        else {
             return
         }
 

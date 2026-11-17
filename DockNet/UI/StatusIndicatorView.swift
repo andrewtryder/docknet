@@ -38,15 +38,16 @@ public final class StatusIndicatorView: NSView {
         translatesAutoresizingMaskIntoConstraints = false
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public override var intrinsicContentSize: NSSize {
+    override public var intrinsicContentSize: NSSize {
         NSSize(width: 8, height: 8)
     }
 
-    public override func draw(_ dirtyRect: NSRect) {
+    override public func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         let circleRect = NSRect(x: 0.5, y: 0.5, width: 7, height: 7)
         let path = NSBezierPath(ovalIn: circleRect)
