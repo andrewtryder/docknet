@@ -139,11 +139,15 @@ DockNet installs to:
 
 The Xcode project is checked into the repository, so XcodeGen is not required for normal builds.
 
-If you want the optional development tools:
+Install SwiftLint and SwiftFormat, then enable the repository pre-commit hook:
 
 ```bash
-brew bundle
+make install-hooks
 ```
+
+The hook checks staged Swift files with both tools. It requires fully staged Swift files; format them with `swiftformat <file>` before committing. XcodeGen and xcbeautify are optional development tools.
+
+Release Please opens release pull requests from conventional commits. It is configured to target 2.1.0 first; remove `release-as` from `release-please-config.json` after that release to resume automatic version selection. GitHub Actions must be allowed to create pull requests in the repository settings.
 
 ### Signing
 

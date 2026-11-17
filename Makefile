@@ -12,7 +12,11 @@ INSTALLED_APP := $(INSTALL_DIR)/DockNet.app
 # Optional xcbeautify formatter
 BEAUTIFY := $(shell command -v xcbeautify 2> /dev/null)
 
-.PHONY: all build release-build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
+.PHONY: install-hooks all build release-build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
+
+install-hooks:
+	@git config core.hooksPath .githooks
+	@echo "Installed repository Git hooks."
 
 all: build
 
@@ -150,4 +154,5 @@ diagnose:
 regenerate-project:
 	@which xcodegen > /dev/null || (echo "xcodegen not found. Install via: brew install xcodegen" && exit 1)
 	@xcodegen generate
+	@sed -i '' 's/\(MARKETING_VERSION = [^;]*;\)/\1 \/\* x-release-please-version \*\//g' $(PROJECT)/project.pbxproj
 	@echo "Regenerated $(PROJECT)"

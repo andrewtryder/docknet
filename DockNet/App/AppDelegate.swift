@@ -7,14 +7,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "AppDelegate")
     private static var strongDelegate: AppDelegate?
 
-    public nonisolated static func main() {
-        MainActor.assumeIsolated {
-            let app = NSApplication.shared
-            let delegate = AppDelegate()
-            strongDelegate = delegate
-            app.delegate = delegate
-            app.run()
-        }
+    public static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        strongDelegate = delegate
+        app.delegate = delegate
+        app.run()
     }
 
     public var networkMonitor: (any NetworkMonitoringProtocol)!
@@ -24,7 +22,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var testWindow: NSWindow?
     private var testHostController: TestHostViewController?
 
-    public func applicationDidFinishLaunching(_ notification: Notification) {
+    public func applicationDidFinishLaunching(_: Notification) {
         let args = ProcessInfo.processInfo.arguments
         let env = ProcessInfo.processInfo.environment
         let isUITesting = args.contains("--ui-testing")
@@ -38,9 +36,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Initialize managers
-        self.loginItemManager = LoginItemManager()
+        loginItemManager = LoginItemManager()
 
-        if isUITesting && !isLiveMode {
+        if isUITesting, !isLiveMode {
             var scenario = "wifi"
             var stateFile: String? = nil
 
@@ -59,10 +57,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             let mockMonitor = MockNetworkMonitor(scenario: scenario, stateFilePath: stateFile)
-            self.networkMonitor = mockMonitor
+            networkMonitor = mockMonitor
 
             let mockScheduler = MockNotificationScheduler(status: .notDetermined)
-            self.notificationManager = NotificationManager(
+            notificationManager = NotificationManager(
                 scheduler: mockScheduler,
                 userDefaults: UserDefaults(suiteName: "com.andrewtryder.docknet.tests") ?? .standard,
                 debounceInterval: 0
@@ -71,9 +69,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             AboutWindowController.shared.urlOpener = MockURLOpener()
         } else {
             let monitor = NetworkMonitor()
-            self.networkMonitor = monitor
-            self.notificationManager = NotificationManager()
-            self.statusItemController = StatusItemController(
+            networkMonitor = monitor
+            notificationManager = NotificationManager()
+            statusItemController = StatusItemController(
                 networkMonitor: monitor,
                 notificationManager: notificationManager,
                 loginItemManager: loginItemManager
@@ -106,7 +104,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             notificationManager: notificationManager,
             loginItemManager: loginItemManager
         )
-        self.testHostController = hostVC
+        testHostController = hostVC
 
         let window = NSWindow(
             contentRect: NSRect(x: 200, y: 100, width: 340, height: 750),
@@ -117,7 +115,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "DockNet Test Host"
         window.contentViewController = hostVC
         window.makeKeyAndOrderFront(nil)
-        self.testWindow = window
+        testWindow = window
 
         NSApp.activate(ignoringOtherApps: true)
         Self.logger.info("Test host window created and presented")
@@ -147,7 +145,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    public func applicationWillTerminate(_ notification: Notification) {
+    public func applicationWillTerminate(_: Notification) {
         Self.logger.info("DockNet terminating")
         networkMonitor?.stopMonitoring()
     }

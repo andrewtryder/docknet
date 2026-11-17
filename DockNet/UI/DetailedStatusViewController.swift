@@ -5,7 +5,6 @@ import AppKit
 /// Designed for zero idle cost when closed.
 @MainActor
 public final class DetailedStatusViewController: NSViewController {
-
     // Dependencies
     private let networkMonitor: any NetworkMonitoringProtocol
     private let notificationManager: NotificationManager
@@ -15,8 +14,8 @@ public final class DetailedStatusViewController: NSViewController {
 
     // UI Elements
     private var headerIconView: NSImageView!
-    private var primaryContainer: NSStackView!
-    private var otherContainer: NSStackView!
+    var primaryContainer: NSStackView!
+    var otherContainer: NSStackView!
     private var notifyCheckbox: NSButton!
     private var launchAtLoginCheckbox: NSButton!
     private var styleSegmentedControl: NSSegmentedControl!
@@ -36,16 +35,17 @@ public final class DetailedStatusViewController: NSViewController {
         super.init(nibName: nil, bundle: nil)
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public override func loadView() {
+    override public func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 350, height: 480))
         root.setAccessibilityElement(true)
         root.setAccessibilityIdentifier("docknet.detailed")
         root.setAccessibilityLabel("DockNet Detailed View")
-        self.view = root
+        view = root
 
         let mainStack = NSStackView()
         mainStack.orientation = .vertical
@@ -58,7 +58,7 @@ public final class DetailedStatusViewController: NSViewController {
             mainStack.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
             mainStack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             mainStack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -14)
+            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -14),
         ])
 
         // 1. Header (Icon + App Name)
@@ -71,11 +71,11 @@ public final class DetailedStatusViewController: NSViewController {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             iconView.widthAnchor.constraint(equalToConstant: 20),
-            iconView.heightAnchor.constraint(equalToConstant: 20)
+            iconView.heightAnchor.constraint(equalToConstant: 20),
         ])
         iconView.setAccessibilityElement(true)
         iconView.setAccessibilityIdentifier("docknet.status.icon")
-        self.headerIconView = iconView
+        headerIconView = iconView
         headerStack.addArrangedSubview(iconView)
 
         let titleLabel = NSTextField(labelWithString: "DockNet")
@@ -99,7 +99,7 @@ public final class DetailedStatusViewController: NSViewController {
         primaryCard.translatesAutoresizingMaskIntoConstraints = false
         primaryCard.setAccessibilityElement(true)
         primaryCard.setAccessibilityIdentifier("docknet.detailed.primary")
-        self.primaryContainer = primaryCard
+        primaryContainer = primaryCard
         mainStack.addArrangedSubview(primaryCard)
 
         mainStack.addArrangedSubview(makeSeparator())
@@ -117,7 +117,7 @@ public final class DetailedStatusViewController: NSViewController {
         otherCard.translatesAutoresizingMaskIntoConstraints = false
         otherCard.setAccessibilityElement(true)
         otherCard.setAccessibilityIdentifier("docknet.detailed.otherConnections")
-        self.otherContainer = otherCard
+        otherContainer = otherCard
         mainStack.addArrangedSubview(otherCard)
 
         mainStack.addArrangedSubview(makeSeparator())
@@ -130,7 +130,7 @@ public final class DetailedStatusViewController: NSViewController {
         )
         notifyBtn.setAccessibilityIdentifier("docknet.notifications")
         notifyBtn.font = NSFont.systemFont(ofSize: 12)
-        self.notifyCheckbox = notifyBtn
+        notifyCheckbox = notifyBtn
         mainStack.addArrangedSubview(notifyBtn)
 
         let loginBtn = NSButton(
@@ -140,7 +140,7 @@ public final class DetailedStatusViewController: NSViewController {
         )
         loginBtn.setAccessibilityIdentifier("docknet.launchAtLogin")
         loginBtn.font = NSFont.systemFont(ofSize: 12)
-        self.launchAtLoginCheckbox = loginBtn
+        launchAtLoginCheckbox = loginBtn
         mainStack.addArrangedSubview(loginBtn)
 
         // Display Style Selector Row
@@ -163,7 +163,7 @@ public final class DetailedStatusViewController: NSViewController {
         )
         segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
         segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
-        self.styleSegmentedControl = segmented
+        styleSegmentedControl = segmented
         styleRow.addArrangedSubview(segmented)
 
         mainStack.addArrangedSubview(styleRow)
@@ -231,7 +231,7 @@ public final class DetailedStatusViewController: NSViewController {
             : snapshot.wiredInterfaces
         let showWifiStandby = snapshot.actualPrimaryIsWired
 
-        if otherWired.isEmpty && !showWifiStandby {
+        if otherWired.isEmpty, !showWifiStandby {
             let emptyLabel = NSTextField(labelWithString: "No other connections")
             emptyLabel.font = NSFont.systemFont(ofSize: 12)
             emptyLabel.textColor = .secondaryLabelColor
@@ -252,224 +252,6 @@ public final class DetailedStatusViewController: NSViewController {
         styleSegmentedControl.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
     }
 
-    // MARK: - View Rendering Helpers
-
-    private func renderPrimaryWired(_ active: WiredInterfaceState) {
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let tone: StatusIndicatorView.Tone
-        switch active.health {
-        case .ready: tone = .green
-        case .linkUp, .obtainingDHCP: tone = .orange
-        case .degraded: tone = .red
-        default: tone = .gray
-        }
-
-        let dot = StatusIndicatorView(tone: tone)
-        topRow.addArrangedSubview(dot)
-
-        let nameLabel = NSTextField(labelWithString: active.serviceName)
-        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        topRow.addArrangedSubview(nameLabel)
-
-        let badge = makeBadge(title: "Primary", tone: .green)
-        badge.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).primary")
-        topRow.addArrangedSubview(badge)
-
-        primaryContainer.addArrangedSubview(topRow)
-
-        let typeLabel = NSTextField(labelWithString: "Ethernet")
-        typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-        typeLabel.isHidden = true
-        primaryContainer.addArrangedSubview(typeLabel)
-
-        let ifaceText = "Ethernet · \(active.bsdName)"
-        let ifaceLabel = NSTextField(labelWithString: ifaceText)
-        ifaceLabel.font = NSFont.systemFont(ofSize: 12)
-        ifaceLabel.textColor = .secondaryLabelColor
-        ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-        ifaceLabel.setAccessibilityLabel(ifaceText)
-        primaryContainer.addArrangedSubview(ifaceLabel)
-
-        let ipText = active.ipv4Address ?? "No IP"
-        let ipLabel = NSTextField(labelWithString: ipText)
-        ipLabel.font = NSFont.systemFont(ofSize: 12)
-        ipLabel.textColor = .secondaryLabelColor
-        primaryContainer.addArrangedSubview(ipLabel)
-
-        if let speed = active.linkSpeed {
-            let speedLabel = NSTextField(labelWithString: speed)
-            speedLabel.font = NSFont.systemFont(ofSize: 12)
-            speedLabel.textColor = .secondaryLabelColor
-            speedLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).speed")
-            primaryContainer.addArrangedSubview(speedLabel)
-        }
-    }
-
-    private func renderPrimaryWifi(_ snapshot: NetworkSnapshot) {
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let dot = StatusIndicatorView(tone: .green)
-        topRow.addArrangedSubview(dot)
-
-        let nameLabel = NSTextField(labelWithString: "Wi-Fi")
-        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        topRow.addArrangedSubview(nameLabel)
-
-        let badge = makeBadge(title: "Primary", tone: .green)
-        topRow.addArrangedSubview(badge)
-
-        primaryContainer.addArrangedSubview(topRow)
-
-        let typeLabel = NSTextField(labelWithString: "Wi-Fi")
-        typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-        typeLabel.isHidden = true
-        primaryContainer.addArrangedSubview(typeLabel)
-
-        let ifaceText = "\(snapshot.wifi.bsdName) · \(snapshot.wifi.primaryIPv4Address ?? "No IP")"
-        let ifaceLabel = NSTextField(labelWithString: ifaceText)
-        ifaceLabel.font = NSFont.systemFont(ofSize: 12)
-        ifaceLabel.textColor = .secondaryLabelColor
-        ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-        ifaceLabel.setAccessibilityLabel(ifaceText)
-        primaryContainer.addArrangedSubview(ifaceLabel)
-
-        let healthLabel = NSTextField(labelWithString: "Connected · Primary")
-        healthLabel.font = NSFont.systemFont(ofSize: 12)
-        healthLabel.textColor = .secondaryLabelColor
-        healthLabel.setAccessibilityIdentifier("docknet.wifi.health")
-        primaryContainer.addArrangedSubview(healthLabel)
-    }
-
-    private func renderPrimaryOffline() {
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let dot = StatusIndicatorView(tone: .gray)
-        topRow.addArrangedSubview(dot)
-
-        let nameLabel = NSTextField(labelWithString: "No Active Primary Connection")
-        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-        nameLabel.textColor = .secondaryLabelColor
-        topRow.addArrangedSubview(nameLabel)
-
-        primaryContainer.addArrangedSubview(topRow)
-
-        let typeLabel = NSTextField(labelWithString: "Offline")
-        typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-        typeLabel.isHidden = true
-        primaryContainer.addArrangedSubview(typeLabel)
-
-        let ifaceLabel = NSTextField(labelWithString: "Offline")
-        ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-        ifaceLabel.isHidden = true
-        primaryContainer.addArrangedSubview(ifaceLabel)
-    }
-
-    private func renderOtherWired(_ iface: WiredInterfaceState) {
-        let row = NSStackView()
-        row.orientation = .vertical
-        row.alignment = .leading
-        row.spacing = 1
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let tone: StatusIndicatorView.Tone
-        switch iface.health {
-        case .ready: tone = .green
-        case .linkUp, .obtainingDHCP: tone = .orange
-        case .degraded: tone = .red
-        default: tone = .gray
-        }
-
-        let dot = StatusIndicatorView(tone: tone)
-        topRow.addArrangedSubview(dot)
-
-        let name = NSTextField(labelWithString: iface.serviceName)
-        name.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        name.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).name")
-        topRow.addArrangedSubview(name)
-
-        let bsdLabel = NSTextField(labelWithString: iface.bsdName)
-        bsdLabel.font = NSFont.systemFont(ofSize: 11)
-        bsdLabel.textColor = .secondaryLabelColor
-        topRow.addArrangedSubview(bsdLabel)
-
-        row.addArrangedSubview(topRow)
-
-        var detailParts: [String] = []
-        if let ip = iface.ipv4Address {
-            detailParts.append(ip)
-        }
-        detailParts.append(iface.statusSummary)
-        if let speed = iface.linkSpeed {
-            detailParts.append(speed)
-        }
-
-        let detailText = "     " + detailParts.joined(separator: " · ")
-        let detailLabel = NSTextField(labelWithString: detailText)
-        detailLabel.font = NSFont.systemFont(ofSize: 11)
-        detailLabel.textColor = .secondaryLabelColor
-        detailLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).health")
-        row.addArrangedSubview(detailLabel)
-
-        otherContainer.addArrangedSubview(row)
-    }
-
-    private func renderOtherWifiStandby(_ snapshot: NetworkSnapshot) {
-        let row = NSStackView()
-        row.orientation = .vertical
-        row.alignment = .leading
-        row.spacing = 1
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let dot = StatusIndicatorView(tone: .gray)
-        topRow.addArrangedSubview(dot)
-
-        let name = NSTextField(labelWithString: "Wi-Fi")
-        name.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        topRow.addArrangedSubview(name)
-
-        let bsdLabel = NSTextField(labelWithString: snapshot.wifi.bsdName)
-        bsdLabel.font = NSFont.systemFont(ofSize: 11)
-        bsdLabel.textColor = .secondaryLabelColor
-        topRow.addArrangedSubview(bsdLabel)
-
-        row.addArrangedSubview(topRow)
-
-        var detailParts: [String] = []
-        if let ip = snapshot.wifi.primaryIPv4Address {
-            detailParts.append(ip)
-        }
-        detailParts.append("Standby")
-
-        let detailText = "     " + detailParts.joined(separator: " · ")
-        let detailLabel = NSTextField(labelWithString: detailText)
-        detailLabel.font = NSFont.systemFont(ofSize: 11)
-        detailLabel.textColor = .secondaryLabelColor
-        detailLabel.setAccessibilityIdentifier("docknet.wifi.health")
-        row.addArrangedSubview(detailLabel)
-
-        otherContainer.addArrangedSubview(row)
-    }
-
     // MARK: - UI Construction Helpers
 
     private func makeSeparator() -> NSBox {
@@ -477,12 +259,12 @@ public final class DetailedStatusViewController: NSViewController {
         box.boxType = .separator
         box.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            box.widthAnchor.constraint(equalToConstant: 318)
+            box.widthAnchor.constraint(equalToConstant: 318),
         ])
         return box
     }
 
-    private func makeBadge(title: String, tone: StatusIndicatorView.Tone) -> NSTextField {
+    func makeBadge(title: String, tone: StatusIndicatorView.Tone) -> NSTextField {
         let label = NSTextField(labelWithString: " \(title) ")
         label.font = NSFont.systemFont(ofSize: 10, weight: .bold)
         label.textColor = tone.color

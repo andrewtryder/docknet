@@ -1,0 +1,19 @@
+{
+  "release-type": "simple",
+  "release-as": "2.1.0",
+  "packages": {
+    ".": {
+      "extra-files": [
+        {
+          "type": "yaml",
+          "path": "project.yml",
+          "jsonpath": "$.targets.DockNet.settings.base.MARKETING_VERSION"
+        },
+        {
+          "type": "generic",
+          "path": "DockNet.xcodeproj/project.pbxproj"
+        }
+      ]
+    }
+  }
+}
