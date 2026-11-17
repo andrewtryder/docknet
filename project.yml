@@ -2,25 +2,23 @@ name: DockNet
 options:
   bundleIdPrefix: com.andrewtryder
   deploymentTarget:
-    macOS: "13.0"
-  xcodeVersion: "15.0"
+    macOS: '13.0'
+  xcodeVersion: '15.0'
   generateEmptyDirectories: true
-
 settings:
   base:
-    MACOSX_DEPLOYMENT_TARGET: "13.0"
-    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: '13.0'
+    SWIFT_VERSION: '5.0'
     CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "-"
-    DEVELOPMENT_TEAM: ""
-    COMBINE_HIDPI_IMAGES: YES
+    CODE_SIGN_IDENTITY: '-'
+    DEVELOPMENT_TEAM: ''
+    COMBINE_HIDPI_IMAGES: 'YES'
     ARCHS: arm64
-
 targets:
   DockNet:
     type: application
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: '13.0'
     sources:
       - path: DockNet
         excludes:
@@ -28,32 +26,31 @@ targets:
     info:
       path: DockNet/Supporting/Info.plist
       properties:
-        CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleIconFile: AppIcon
         CFBundleIconName: AppIcon
         LSUIElement: true
-        LSMinimumSystemVersion: "13.0"
+        LSMinimumSystemVersion: '13.0'
         NSHighResolutionCapable: true
     settings:
       base:
         PRODUCT_NAME: DockNet
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewtryder.DockNet
         INFOPLIST_FILE: DockNet/Supporting/Info.plist
-        GENERATE_INFOPLIST_FILE: NO
+        GENERATE_INFOPLIST_FILE: 'NO'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ENABLE_HARDENED_RUNTIME: NO
-        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: 'NO'
+        CODE_SIGN_IDENTITY: '-'
         CODE_SIGN_STYLE: Manual
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: ''
         ARCHS: arm64
-        MARKETING_VERSION: "2.0.0"
-        CURRENT_PROJECT_VERSION: "2"
-
+        MARKETING_VERSION: 2.1.0
+        CURRENT_PROJECT_VERSION: '2'
   DockNetTests:
     type: bundle.unit-test
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: '13.0'
     sources:
       - path: DockNetTests
     dependencies:
@@ -62,16 +59,15 @@ targets:
       base:
         PRODUCT_NAME: DockNetTests
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewtryder.DockNetTests
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: '-'
         CODE_SIGN_STYLE: Manual
-        DEVELOPMENT_TEAM: ""
-        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: ''
+        GENERATE_INFOPLIST_FILE: 'YES'
         ARCHS: arm64
-
   DockNetUITests:
     type: bundle.ui-testing
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: '13.0'
     sources:
       - path: DockNetUITests
     dependencies:
@@ -80,19 +76,20 @@ targets:
       base:
         PRODUCT_NAME: DockNetUITests
         PRODUCT_BUNDLE_IDENTIFIER: com.andrewtryder.DockNetUITests
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: '-'
         CODE_SIGN_STYLE: Manual
-        DEVELOPMENT_TEAM: ""
-        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: ''
+        GENERATE_INFOPLIST_FILE: 'YES'
         ARCHS: arm64
-
 schemes:
   DockNet:
     build:
       targets:
         DockNet: all
-        DockNetTests: [test]
-        DockNetUITests: [test]
+        DockNetTests:
+          - test
+        DockNetUITests:
+          - test
     run:
       config: Debug
     test:
