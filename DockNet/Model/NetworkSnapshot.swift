@@ -104,10 +104,7 @@ public struct NetworkSnapshot: Equatable, Sendable {
         wiredInterfaces.first(where: { $0.isPreferred }) ??
             wiredInterfaces
             .filter { $0.enabled && $0.isReady }
-            .sorted { lhs, rhs -> Bool in
-                (lhs.serviceOrder ?? Int.max) < (rhs.serviceOrder ?? Int.max)
-            }
-            .first
+            .min { ($0.serviceOrder ?? Int.max) < ($1.serviceOrder ?? Int.max) }
     }
 
     /// Whether the resolved physical primary connection is physical Ethernet.

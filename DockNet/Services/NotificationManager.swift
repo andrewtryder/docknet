@@ -46,73 +46,75 @@ public struct UserNotificationsScheduler: NotificationScheduling {
     }
 }
 
-/// Mock notification scheduler for unit and UI automation testing. All mutable state is guarded by `lock`.
-public final class MockNotificationScheduler: @unchecked Sendable, NotificationScheduling {
-    private let lock = NSLock()
-    private var _authStatus: UNAuthorizationStatus
-    private var _requestAuthResult = true
-    private var _sentNotifications: [DockNetNotification] = []
-    private var _requestCount = 0
+#if DEBUG
+    /// Mock notification scheduler for unit and UI automation testing. All mutable state is guarded by `lock`.
+    public final class MockNotificationScheduler: @unchecked Sendable, NotificationScheduling {
+        private let lock = NSLock()
+        private var _authStatus: UNAuthorizationStatus
+        private var _requestAuthResult = true
+        private var _sentNotifications: [DockNetNotification] = []
+        private var _requestCount = 0
 
-    public var stubbedAuthStatus: UNAuthorizationStatus {
-        get { lock.lock(); defer { lock.unlock() }; return _authStatus }
-        set { lock.lock(); defer { lock.unlock() }; _authStatus = newValue }
-    }
-
-    public var stubbedRequestAuthResult: Bool {
-        get { lock.lock(); defer { lock.unlock() }; return _requestAuthResult }
-        set { lock.lock(); defer { lock.unlock() }; _requestAuthResult = newValue }
-    }
-
-    public var sentNotifications: [DockNetNotification] {
-        lock.lock(); defer { lock.unlock() }; return _sentNotifications
-    }
-
-    public var requestAuthorizationCallCount: Int {
-        lock.lock(); defer { lock.unlock() }; return _requestCount
-    }
-
-    public init(status: UNAuthorizationStatus = .notDetermined) {
-        _authStatus = status
-    }
-
-    public func requestAuthorization() async -> Bool {
-        recordRequestAuthorization()
-    }
-
-    private func recordRequestAuthorization() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        _requestCount += 1
-        if _requestAuthResult {
-            _authStatus = .authorized
+        public var stubbedAuthStatus: UNAuthorizationStatus {
+            get { lock.lock(); defer { lock.unlock() }; return _authStatus }
+            set { lock.lock(); defer { lock.unlock() }; _authStatus = newValue }
         }
-        return _requestAuthResult
-    }
 
-    public func authorizationStatus() async -> UNAuthorizationStatus {
-        getAuthStatus()
-    }
+        public var stubbedRequestAuthResult: Bool {
+            get { lock.lock(); defer { lock.unlock() }; return _requestAuthResult }
+            set { lock.lock(); defer { lock.unlock() }; _requestAuthResult = newValue }
+        }
 
-    private func getAuthStatus() -> UNAuthorizationStatus {
-        lock.lock(); defer { lock.unlock() }; return _authStatus
-    }
+        public var sentNotifications: [DockNetNotification] {
+            lock.lock(); defer { lock.unlock() }; return _sentNotifications
+        }
 
-    public func send(_ notification: DockNetNotification) async {
-        recordNotification(notification)
-    }
+        public var requestAuthorizationCallCount: Int {
+            lock.lock(); defer { lock.unlock() }; return _requestCount
+        }
 
-    private func recordNotification(_ notification: DockNetNotification) {
-        lock.lock(); defer { lock.unlock() }; _sentNotifications.append(notification)
-    }
+        public init(status: UNAuthorizationStatus = .notDetermined) {
+            _authStatus = status
+        }
 
-    public func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        _sentNotifications.removeAll()
-        _requestCount = 0
+        public func requestAuthorization() async -> Bool {
+            recordRequestAuthorization()
+        }
+
+        private func recordRequestAuthorization() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            _requestCount += 1
+            if _requestAuthResult {
+                _authStatus = .authorized
+            }
+            return _requestAuthResult
+        }
+
+        public func authorizationStatus() async -> UNAuthorizationStatus {
+            getAuthStatus()
+        }
+
+        private func getAuthStatus() -> UNAuthorizationStatus {
+            lock.lock(); defer { lock.unlock() }; return _authStatus
+        }
+
+        public func send(_ notification: DockNetNotification) async {
+            recordNotification(notification)
+        }
+
+        private func recordNotification(_ notification: DockNetNotification) {
+            lock.lock(); defer { lock.unlock() }; _sentNotifications.append(notification)
+        }
+
+        public func reset() {
+            lock.lock()
+            defer { lock.unlock() }
+            _sentNotifications.removeAll()
+            _requestCount = 0
+        }
     }
-}
+#endif
 
 /// Coordinates notification preferences, authorization states, debounce, deduplication, and scheduling.
 /// Transition state is guarded by `lock`; preferences use thread-safe UserDefaults.
@@ -122,7 +124,9 @@ public final class NotificationManager: @unchecked Sendable {
     public static let preferenceKey = "docknet.notifications.enabled"
 
     public let scheduler: any NotificationScheduling
-    public let userDefaults: UserDefaults
+    /// `nonisolated(unsafe)` scopes the concurrency bypass strictly to this immutable `UserDefaults` reference
+    /// (assigned once in `init`); all preference reads/writes delegate to thread-safe `NSUserDefaults`.
+    public nonisolated(unsafe) let userDefaults: UserDefaults
 
     private let lock = NSLock()
     private var _stablePrimary: PrimaryConnection?

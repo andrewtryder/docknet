@@ -1,5 +1,11 @@
 import AppKit
 
+private final class FlippedContentView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+}
+
 /// Native AppKit view controller displaying DockNet's Detailed presentation style.
 /// Contains rich visual hierarchy, connection cards, preferences, and utility actions.
 /// Designed for zero idle cost when closed.
@@ -13,12 +19,16 @@ public final class DetailedStatusViewController: NSViewController {
     private let onStyleChanged: (PresentationStyle) -> Void
 
     // UI Elements
-    private var headerIconView: NSImageView!
-    var primaryContainer: NSStackView!
-    var otherContainer: NSStackView!
-    private var notifyCheckbox: NSButton!
-    private var launchAtLoginCheckbox: NSButton!
-    private var styleSegmentedControl: NSSegmentedControl!
+    private let headerIconView = NSImageView()
+    let primaryContainer = NSStackView()
+    let otherContainer = NSStackView()
+    private let notifyCheckbox: NSButton
+    private let launchAtLoginCheckbox: NSButton
+    private let styleSegmentedControl: NSSegmentedControl
+
+    // Render deduplication state
+    private var lastRenderedSnapshot: NetworkSnapshot?
+    private var lastRenderedIconState: StatusIconState?
 
     public init(
         networkMonitor: any NetworkMonitoringProtocol,
@@ -32,6 +42,14 @@ public final class DetailedStatusViewController: NSViewController {
         self.loginItemManager = loginItemManager
         self.presentationPreferences = presentationPreferences
         self.onStyleChanged = onStyleChanged
+        notifyCheckbox = NSButton(checkboxWithTitle: "Notify on connection changes", target: nil, action: nil)
+        launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch at Login", target: nil, action: nil)
+        styleSegmentedControl = NSSegmentedControl(
+            labels: ["Compact", "Detailed"],
+            trackingMode: .selectOne,
+            target: nil,
+            action: nil
+        )
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -47,36 +65,67 @@ public final class DetailedStatusViewController: NSViewController {
         root.setAccessibilityLabel("DockNet Detailed View")
         view = root
 
+        let mainStack = makeScrolledMainStack(in: root)
+        addHeaderSection(to: mainStack)
+        addConnectionSections(to: mainStack)
+        addPreferencesAndActions(to: mainStack)
+
+        // Initial snapshot populate
+        update(with: networkMonitor.currentSnapshot)
+    }
+
+    private func makeScrolledMainStack(in root: NSView) -> NSStackView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(scrollView)
+
+        let documentView = FlippedContentView()
+        documentView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = documentView
+
         let mainStack = NSStackView()
         mainStack.orientation = .vertical
         mainStack.alignment = .leading
         mainStack.spacing = 10
         mainStack.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(mainStack)
+        documentView.addSubview(mainStack)
 
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
-            mainStack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            mainStack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -14),
-        ])
+            scrollView.topAnchor.constraint(equalTo: root.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
-        // 1. Header (Icon + App Name)
+            documentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            documentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            documentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+
+            mainStack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 14),
+            mainStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 16),
+            mainStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -16),
+            mainStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -14),
+        ])
+        return mainStack
+    }
+
+    private func addHeaderSection(to mainStack: NSStackView) {
         let headerStack = NSStackView()
         headerStack.orientation = .horizontal
         headerStack.spacing = 8
         headerStack.alignment = .centerY
 
-        let iconView = NSImageView()
-        iconView.translatesAutoresizingMaskIntoConstraints = false
+        headerIconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            iconView.widthAnchor.constraint(equalToConstant: 20),
-            iconView.heightAnchor.constraint(equalToConstant: 20),
+            headerIconView.widthAnchor.constraint(equalToConstant: 20),
+            headerIconView.heightAnchor.constraint(equalToConstant: 20),
         ])
-        iconView.setAccessibilityElement(true)
-        iconView.setAccessibilityIdentifier("docknet.status.icon")
-        headerIconView = iconView
-        headerStack.addArrangedSubview(iconView)
+        headerIconView.setAccessibilityElement(true)
+        headerIconView.setAccessibilityIdentifier("docknet.status.icon")
+        headerStack.addArrangedSubview(headerIconView)
 
         let titleLabel = NSTextField(labelWithString: "DockNet")
         titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .bold)
@@ -84,71 +133,58 @@ public final class DetailedStatusViewController: NSViewController {
         headerStack.addArrangedSubview(titleLabel)
 
         mainStack.addArrangedSubview(headerStack)
-        mainStack.addArrangedSubview(makeSeparator())
+        addSeparator(to: mainStack)
+    }
 
-        // 2. PRIMARY CONNECTION Section
+    private func addConnectionSections(to mainStack: NSStackView) {
         let primaryHeading = NSTextField(labelWithString: "PRIMARY CONNECTION")
         primaryHeading.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
         primaryHeading.textColor = .secondaryLabelColor
         mainStack.addArrangedSubview(primaryHeading)
 
-        let primaryCard = NSStackView()
-        primaryCard.orientation = .vertical
-        primaryCard.alignment = .leading
-        primaryCard.spacing = 3
-        primaryCard.translatesAutoresizingMaskIntoConstraints = false
-        primaryCard.setAccessibilityElement(true)
-        primaryCard.setAccessibilityIdentifier("docknet.detailed.primary")
-        primaryContainer = primaryCard
-        mainStack.addArrangedSubview(primaryCard)
+        primaryContainer.orientation = .vertical
+        primaryContainer.alignment = .leading
+        primaryContainer.spacing = 3
+        primaryContainer.translatesAutoresizingMaskIntoConstraints = false
+        primaryContainer.setAccessibilityElement(true)
+        primaryContainer.setAccessibilityIdentifier("docknet.detailed.primary")
+        primaryContainer.setAccessibilityLabel("Primary Connection")
+        mainStack.addArrangedSubview(primaryContainer)
+        primaryContainer.widthAnchor.constraint(equalTo: mainStack.widthAnchor).isActive = true
 
-        mainStack.addArrangedSubview(makeSeparator())
+        addSeparator(to: mainStack)
 
-        // 3. OTHER CONNECTIONS Section
         let otherHeading = NSTextField(labelWithString: "OTHER CONNECTIONS")
         otherHeading.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
         otherHeading.textColor = .secondaryLabelColor
         mainStack.addArrangedSubview(otherHeading)
 
-        let otherCard = NSStackView()
-        otherCard.orientation = .vertical
-        otherCard.alignment = .leading
-        otherCard.spacing = 6
-        otherCard.translatesAutoresizingMaskIntoConstraints = false
-        otherCard.setAccessibilityElement(true)
-        otherCard.setAccessibilityIdentifier("docknet.detailed.otherConnections")
-        otherContainer = otherCard
-        mainStack.addArrangedSubview(otherCard)
+        otherContainer.orientation = .vertical
+        otherContainer.alignment = .leading
+        otherContainer.spacing = 6
+        otherContainer.translatesAutoresizingMaskIntoConstraints = false
+        otherContainer.setAccessibilityElement(true)
+        otherContainer.setAccessibilityIdentifier("docknet.detailed.otherConnections")
+        otherContainer.setAccessibilityLabel("Other Connections")
+        mainStack.addArrangedSubview(otherContainer)
+        otherContainer.widthAnchor.constraint(equalTo: mainStack.widthAnchor).isActive = true
 
-        mainStack.addArrangedSubview(makeSeparator())
-
-        addPreferencesAndActions(to: mainStack)
-
-        // Initial snapshot populate
-        update(with: networkMonitor.currentSnapshot)
+        addSeparator(to: mainStack)
     }
 
     private func addPreferencesAndActions(to mainStack: NSStackView) {
         // 4. Preferences Section
-        let notifyBtn = NSButton(
-            checkboxWithTitle: "Notify on connection changes",
-            target: self,
-            action: #selector(toggleNotificationsAction)
-        )
-        notifyBtn.setAccessibilityIdentifier("docknet.notifications")
-        notifyBtn.font = NSFont.systemFont(ofSize: 12)
-        notifyCheckbox = notifyBtn
-        mainStack.addArrangedSubview(notifyBtn)
+        notifyCheckbox.target = self
+        notifyCheckbox.action = #selector(toggleNotificationsAction)
+        notifyCheckbox.setAccessibilityIdentifier("docknet.notifications")
+        notifyCheckbox.font = NSFont.systemFont(ofSize: 12)
+        mainStack.addArrangedSubview(notifyCheckbox)
 
-        let loginBtn = NSButton(
-            checkboxWithTitle: "Launch at Login",
-            target: self,
-            action: #selector(toggleLaunchAtLoginAction)
-        )
-        loginBtn.setAccessibilityIdentifier("docknet.launchAtLogin")
-        loginBtn.font = NSFont.systemFont(ofSize: 12)
-        launchAtLoginCheckbox = loginBtn
-        mainStack.addArrangedSubview(loginBtn)
+        launchAtLoginCheckbox.target = self
+        launchAtLoginCheckbox.action = #selector(toggleLaunchAtLoginAction)
+        launchAtLoginCheckbox.setAccessibilityIdentifier("docknet.launchAtLogin")
+        launchAtLoginCheckbox.font = NSFont.systemFont(ofSize: 12)
+        mainStack.addArrangedSubview(launchAtLoginCheckbox)
 
         // Display Style Selector Row
         let styleRow = NSStackView()
@@ -162,19 +198,15 @@ public final class DetailedStatusViewController: NSViewController {
         styleLabel.textColor = .labelColor
         styleRow.addArrangedSubview(styleLabel)
 
-        let segmented = NSSegmentedControl(
-            labels: ["Compact", "Detailed"],
-            trackingMode: .selectOne,
-            target: self,
-            action: #selector(styleSegmentedChanged(_:))
-        )
-        segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
-        segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
-        styleSegmentedControl = segmented
-        styleRow.addArrangedSubview(segmented)
+        styleSegmentedControl.target = self
+        styleSegmentedControl.action = #selector(styleSegmentedChanged(_:))
+        styleSegmentedControl.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+        styleSegmentedControl.setAccessibilityIdentifier("docknet.presentation.segmented")
+        styleSegmentedControl.setAccessibilityLabel("Display Style")
+        styleRow.addArrangedSubview(styleSegmentedControl)
 
         mainStack.addArrangedSubview(styleRow)
-        mainStack.addArrangedSubview(makeSeparator())
+        addSeparator(to: mainStack)
 
         // 5. Utility Actions Section
         let actionsStack = NSStackView()
@@ -211,12 +243,34 @@ public final class DetailedStatusViewController: NSViewController {
     public func update(with snapshot: NetworkSnapshot) {
         guard isViewLoaded else { return }
 
-        // Update header icon
+        // Update header icon only when icon state changes
         let state = StatusIconState.from(snapshot: snapshot)
-        headerIconView.image = StatusIconRenderer.image(for: state)
-        headerIconView.setAccessibilityLabel(state.accessibilityLabel)
+        if state != lastRenderedIconState {
+            lastRenderedIconState = state
+            headerIconView.image = StatusIconRenderer.image(for: state)
+            headerIconView.setAccessibilityLabel(state.accessibilityLabel)
+        }
 
-        // Update Primary Connection Card
+        // Rebuild connection cards only when meaningful network content changes
+        let needsConnectionRebuild: Bool
+        if let last = lastRenderedSnapshot {
+            needsConnectionRebuild = !last.isSemanticallyEqualTo(snapshot)
+        } else {
+            needsConnectionRebuild = true
+        }
+
+        if needsConnectionRebuild {
+            lastRenderedSnapshot = snapshot
+            rebuildConnectionSections(for: snapshot)
+        }
+
+        // Update Preferences
+        notifyCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
+        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+        styleSegmentedControl.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+    }
+
+    private func rebuildConnectionSections(for snapshot: NetworkSnapshot) {
         primaryContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         if snapshot.actualPrimaryIsWired, let active = snapshot.activePrimaryWiredInterface {
@@ -227,7 +281,6 @@ public final class DetailedStatusViewController: NSViewController {
             renderPrimaryOffline()
         }
 
-        // Update Other Connections
         otherContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         let otherWired = snapshot.actualPrimaryIsWired
@@ -248,24 +301,16 @@ public final class DetailedStatusViewController: NSViewController {
                 renderOtherWifiStandby(snapshot)
             }
         }
-
-        // Update Preferences
-        notifyCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
-        loginItemManager.refreshStatus()
-        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        styleSegmentedControl.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
     }
 
     // MARK: - UI Construction Helpers
 
-    private func makeSeparator() -> NSBox {
+    private func addSeparator(to mainStack: NSStackView) {
         let box = NSBox()
         box.boxType = .separator
         box.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            box.widthAnchor.constraint(equalToConstant: 318),
-        ])
-        return box
+        mainStack.addArrangedSubview(box)
+        box.widthAnchor.constraint(equalTo: mainStack.widthAnchor).isActive = true
     }
 
     func makeBadge(title: String, tone: StatusIndicatorView.Tone) -> NSTextField {
@@ -315,9 +360,7 @@ public final class DetailedStatusViewController: NSViewController {
     }
 
     @objc private func openNetworkSettingsAction() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")
-            ?? URL(string: "x-apple.systempreferences:")!
-        WorkspaceURLOpener().open(url)
+        WorkspaceURLOpener().openNetworkSettings()
     }
 
     @objc private func openAboutAction() {

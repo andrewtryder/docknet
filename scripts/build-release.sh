@@ -9,8 +9,8 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 VERSION="${1:-${MARKETING_VERSION:-}}"
 if [ -z "${VERSION}" ]; then
-    # Attempt to derive from git tag or fallback to 2.0.0
-    VERSION="$(git describe --tags --exact-match 2>/dev/null || echo "2.0.0")"
+    # Derive from exact git tag, or fallback to version.txt maintained by release-please
+    VERSION="$(git describe --tags --exact-match 2>/dev/null || tr -d '[:space:]' < "${ROOT_DIR}/version.txt" 2>/dev/null || echo "2.1.0")"
 fi
 VERSION="${VERSION#v}" # Strip leading 'v' if present
 

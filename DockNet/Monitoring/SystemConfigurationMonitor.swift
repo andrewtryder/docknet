@@ -128,6 +128,8 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             "State:/Network/Global/IPv4" as CFString,
             "State:/Network/Global/IPv6" as CFString,
             "Setup:/Network/Service/.*" as CFString,
+            "Setup:/Network/Global/IPv4" as CFString,
+            "Setup:/" as CFString,
         ] as CFArray
 
         guard SCDynamicStoreSetNotificationKeys(store, nil, patterns) else {
@@ -310,25 +312,36 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
         globalPrimary: String?,
         globalRouter: String?
     ) -> NetworkInterfaceInfo {
+        let isPresent = !bsdName.isEmpty && if_nametoindex(bsdName) > 0
+        guard isPresent, enabled else {
+            return NetworkInterfaceInfo(
+                bsdName: bsdName,
+                serviceName: serviceName,
+                serviceID: serviceID,
+                serviceOrder: serviceOrder,
+                enabled: enabled,
+                isLinkActive: false,
+                isHardwarePresent: isPresent
+            )
+        }
+
         // Link status
         var isLinkActive = false
-        if !bsdName.isEmpty {
-            let linkKey = "State:/Network/Interface/\(bsdName)/Link" as CFString
-            if let linkDict = SCDynamicStoreCopyValue(store, linkKey) as? [String: Any] {
-                if let active = linkDict["Active"] as? Bool {
-                    isLinkActive = active
-                } else if let activeNum = linkDict["Active"] as? NSNumber {
-                    isLinkActive = activeNum.boolValue
-                }
+        let linkKey = "State:/Network/Interface/\(bsdName)/Link" as CFString
+        if let linkDict = SCDynamicStoreCopyValue(store, linkKey) as? [String: Any] {
+            if let active = linkDict["Active"] as? Bool {
+                isLinkActive = active
+            } else if let activeNum = linkDict["Active"] as? NSNumber {
+                isLinkActive = activeNum.boolValue
             }
         }
 
-        // IPv4 status
+        // IPv4 status (skip configd lookups when link is down and interface is not global primary)
         var ipv4Addresses: [String] = []
         var subnetMasks: [String] = []
-        var router: String? = nil
+        var router: String?
 
-        if !bsdName.isEmpty {
+        if isLinkActive || globalPrimary == bsdName {
             let ipv4Key = "State:/Network/Interface/\(bsdName)/IPv4" as CFString
             if let ipv4Dict = SCDynamicStoreCopyValue(store, ipv4Key) as? [String: Any] {
                 if let addrs = ipv4Dict["Addresses"] as? [String] {
@@ -341,28 +354,26 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
                     router = interfaceRouter
                 }
             }
-        }
 
-        if router == nil, let sid = serviceID {
-            let serviceIPv4Key = "State:/Network/Service/\(sid)/IPv4" as CFString
-            if let serviceDict = SCDynamicStoreCopyValue(store, serviceIPv4Key) as? [String: Any] {
-                if let serviceRouter = serviceDict["Router"] as? String {
-                    router = serviceRouter
-                }
-                if ipv4Addresses.isEmpty, let serviceAddrs = serviceDict["Addresses"] as? [String] {
-                    ipv4Addresses = serviceAddrs
-                }
-                if subnetMasks.isEmpty, let serviceSubnets = serviceDict["SubnetMasks"] as? [String] {
-                    subnetMasks = serviceSubnets
+            if router == nil, let sid = serviceID {
+                let serviceIPv4Key = "State:/Network/Service/\(sid)/IPv4" as CFString
+                if let serviceDict = SCDynamicStoreCopyValue(store, serviceIPv4Key) as? [String: Any] {
+                    if let serviceRouter = serviceDict["Router"] as? String {
+                        router = serviceRouter
+                    }
+                    if ipv4Addresses.isEmpty, let serviceAddrs = serviceDict["Addresses"] as? [String] {
+                        ipv4Addresses = serviceAddrs
+                    }
+                    if subnetMasks.isEmpty, let serviceSubnets = serviceDict["SubnetMasks"] as? [String] {
+                        subnetMasks = serviceSubnets
+                    }
                 }
             }
-        }
 
-        if router == nil && globalPrimary == bsdName {
-            router = globalRouter
+            if router == nil && globalPrimary == bsdName {
+                router = globalRouter
+            }
         }
-
-        let isPresent = !bsdName.isEmpty && if_nametoindex(bsdName) > 0
 
         return NetworkInterfaceInfo(
             bsdName: bsdName,

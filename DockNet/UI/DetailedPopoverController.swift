@@ -10,6 +10,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
     private let popover: NSPopover
     let statusViewController: DetailedStatusViewController
     private let networkMonitor: any NetworkMonitoringProtocol
+    private let loginItemManager: LoginItemManager
 
     public var isShown: Bool {
         popover.isShown
@@ -23,6 +24,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
         onStyleChanged: @escaping (PresentationStyle) -> Void
     ) {
         self.networkMonitor = networkMonitor
+        self.loginItemManager = loginItemManager
         popover = NSPopover()
 
         let vc = DetailedStatusViewController(
@@ -66,6 +68,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
     public func showPopover(anchorView: NSView) {
         guard !popover.isShown else { return }
         Self.logger.debug("Opening detailed popover")
+        loginItemManager.refreshStatus()
         statusViewController.update(with: networkMonitor.currentSnapshot)
         popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
         anchorView.window?.makeKey()

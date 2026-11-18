@@ -43,9 +43,10 @@ public final class NetworkMonitor: NetworkMonitoringProtocol, @unchecked Sendabl
     private func handleNewSnapshot(_ snapshot: NetworkSnapshot) {
         lock.lock()
         _currentSnapshot = snapshot
+        let handler = callback
         lock.unlock()
 
-        onSnapshotUpdated?(snapshot)
+        handler?(snapshot)
     }
 
     public func startMonitoring() {

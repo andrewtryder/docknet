@@ -305,3 +305,169 @@ final class NetworkEdgeCaseTests: XCTestCase {
         XCTAssertEqual(resolved.bsdName, "en6")
     }
 }
+
+final class NetworkPerformanceBaselineTests: XCTestCase {
+    @MainActor
+    func testSnapshotEvaluationAndUIRenderingPerformanceBaseline() throws {
+        let suiteName = "com.andrewtryder.docknet.tests.perf.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let (stateElapsedUs, lastSnapshot) = benchmarkStateEvaluation(iterations: 1000)
+
+        let notifMgr = NotificationManager(
+            scheduler: MockNotificationScheduler(status: .notDetermined),
+            userDefaults: defaults,
+            debounceInterval: 0
+        )
+        let loginMgr = LoginItemManager()
+        let prefs = PresentationPreferences(defaults: defaults)
+
+        let (menuElapsedUs, itemCount) = benchmarkCompactMenuBuild(
+            iterations: 500,
+            snapshot: lastSnapshot,
+            notificationManager: notifMgr,
+            loginItemManager: loginMgr,
+            presentationPreferences: prefs
+        )
+
+        let detailElapsedUs = benchmarkDetailedDeduplicatedUpdate(
+            iterations: 500,
+            snapshot: lastSnapshot,
+            notificationManager: notifMgr,
+            loginItemManager: loginMgr,
+            presentationPreferences: prefs
+        )
+
+        print(
+            String(
+                format: "PERF_BASELINE state_eval_us=%.2f compact_menu_us=%.2f detailed_dedup_update_us=%.2f",
+                stateElapsedUs,
+                menuElapsedUs,
+                detailElapsedUs
+            )
+        )
+        XCTAssertGreaterThan(lastSnapshot.wiredInterfaces.count, 0)
+        XCTAssertGreaterThan(itemCount, 0)
+    }
+
+    private func benchmarkStateEvaluation(iterations: Int) -> (Double, NetworkSnapshot) {
+        let machine = NetworkStateMachine()
+        let wifi = NetworkInterfaceInfo(
+            bsdName: "en0",
+            serviceName: "Wi-Fi",
+            serviceID: "WIFI-ID",
+            serviceOrder: 3,
+            enabled: true,
+            isLinkActive: true,
+            ipv4Addresses: ["192.168.88.148"],
+            subnetMasks: ["255.255.255.0"],
+            router: "192.168.88.1"
+        )
+        let rawWired = [
+            NetworkInterfaceInfo(
+                bsdName: "en6",
+                serviceName: "USB 10/100/1G/2.5G LAN",
+                serviceID: "EN6-ID",
+                serviceOrder: 1,
+                enabled: true,
+                isLinkActive: true,
+                ipv4Addresses: ["192.168.88.160"],
+                subnetMasks: ["255.255.255.0"],
+                router: "192.168.88.1"
+            ),
+            NetworkInterfaceInfo(
+                bsdName: "en8",
+                serviceName: "USB 10/100/1000 LAN",
+                serviceID: "EN8-ID",
+                serviceOrder: 2,
+                enabled: true,
+                isLinkActive: false,
+                isHardwarePresent: false
+            ),
+        ]
+
+        let start = DispatchTime.now().uptimeNanoseconds
+        var snapshot = NetworkSnapshot(wiredInterfaces: [], wifi: wifi)
+        for _ in 0 ..< iterations {
+            let evaluated = machine.evaluateWiredInterfaces(from: rawWired)
+            let transport = PhysicalTransportResolver.resolve(
+                systemPrimaryInterface: "en6",
+                systemPrimaryServiceName: "USB 10/100/1G/2.5G LAN",
+                wiredInterfaces: evaluated,
+                wifi: wifi,
+                previousPhysicalPrimaryBSD: "en6"
+            )
+            snapshot = NetworkSnapshot(
+                wiredInterfaces: evaluated,
+                wifi: wifi,
+                systemPrimaryInterface: "en6",
+                systemPrimaryServiceID: "EN6-ID",
+                systemPrimaryServiceName: "USB 10/100/1G/2.5G LAN",
+                physicalTransport: transport
+            )
+        }
+        let elapsedUs = Double(DispatchTime.now().uptimeNanoseconds - start) / 1000.0 / Double(iterations)
+        return (elapsedUs, snapshot)
+    }
+
+    @MainActor
+    private func benchmarkCompactMenuBuild(
+        iterations: Int,
+        snapshot: NetworkSnapshot,
+        notificationManager: NotificationManager,
+        loginItemManager: LoginItemManager,
+        presentationPreferences: PresentationPreferences
+    ) -> (Double, Int) {
+        let target = NSObject()
+        let menu = NSMenu()
+        let start = DispatchTime.now().uptimeNanoseconds
+        for _ in 0 ..< iterations {
+            CompactMenuBuilder.build(
+                menu: menu,
+                snapshot: snapshot,
+                notificationManager: notificationManager,
+                loginItemManager: loginItemManager,
+                presentationPreferences: presentationPreferences,
+                target: target
+            )
+        }
+        let elapsedUs = Double(DispatchTime.now().uptimeNanoseconds - start) / 1000.0 / Double(iterations)
+        return (elapsedUs, menu.items.count)
+    }
+
+    @MainActor
+    private func benchmarkDetailedDeduplicatedUpdate(
+        iterations: Int,
+        snapshot: NetworkSnapshot,
+        notificationManager: NotificationManager,
+        loginItemManager: LoginItemManager,
+        presentationPreferences: PresentationPreferences
+    ) -> Double {
+        let monitor = MockNetworkMonitor(scenario: "ethernetPrimaryEn6")
+        let vc = DetailedStatusViewController(
+            networkMonitor: monitor,
+            notificationManager: notificationManager,
+            loginItemManager: loginItemManager,
+            presentationPreferences: presentationPreferences,
+            onStyleChanged: { _ in }
+        )
+        _ = vc.view
+
+        let start = DispatchTime.now().uptimeNanoseconds
+        for index in 0 ..< iterations {
+            let snap = NetworkSnapshot(
+                wiredInterfaces: snapshot.wiredInterfaces,
+                wifi: snapshot.wifi,
+                systemPrimaryInterface: snapshot.systemPrimaryInterface,
+                systemPrimaryServiceID: snapshot.systemPrimaryServiceID,
+                systemPrimaryServiceName: snapshot.systemPrimaryServiceName,
+                physicalTransport: snapshot.physicalTransport,
+                globalIPv4Router: snapshot.globalIPv4Router,
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index))
+            )
+            vc.update(with: snap)
+        }
+        return Double(DispatchTime.now().uptimeNanoseconds - start) / 1000.0 / Double(iterations)
+    }
+}

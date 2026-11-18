@@ -1,408 +1,394 @@
-import AppKit
-import os
+#if DEBUG
+    import AppKit
+    import os
 
-/// Native AppKit test host view controller providing a predictable, accessible UI surface
-/// for XCUITest automation (--ui-testing mode). Zero SwiftUI dependencies.
-@MainActor
-public final class TestHostViewController: NSViewController {
-    private let networkMonitor: any NetworkMonitoringProtocol
-    private let notificationManager: NotificationManager
-    private let loginItemManager: LoginItemManager
-    public let presentationPreferences: PresentationPreferences
+    /// Native AppKit test host view controller providing a predictable, accessible UI surface
+    /// for XCUITest automation (--ui-testing mode). Zero SwiftUI dependencies.
+    @MainActor
+    public final class TestHostViewController: NSViewController {
+        private let networkMonitor: any NetworkMonitoringProtocol
+        private let notificationManager: NotificationManager
+        private let loginItemManager: LoginItemManager
+        public let presentationPreferences: PresentationPreferences
 
-    private var contentStack: NSStackView!
-    private var iconView: NSImageView!
-    private var headerTitle: NSTextField!
+        private let iconView = NSImageView()
+        private let primaryCardsContainer = NSStackView()
+        private let otherConnectionsContainer = NSStackView()
+        private let notificationsCheckbox: NSButton
+        private let launchAtLoginCheckbox: NSButton
+        private var styleSegmented: NSSegmentedControl?
 
-    private var primaryTypeLabel: NSTextField!
-    private var primaryInterfaceLabel: NSTextField!
-    private var primaryCardsContainer: NSStackView!
-
-    private var otherConnectionsContainer: NSStackView!
-
-    private var notificationsCheckbox: NSButton!
-    private var launchAtLoginCheckbox: NSButton!
-    private var styleSegmented: NSSegmentedControl?
-
-    public init(
-        networkMonitor: any NetworkMonitoringProtocol,
-        notificationManager: NotificationManager,
-        loginItemManager: LoginItemManager,
-        presentationPreferences: PresentationPreferences = PresentationPreferences()
-    ) {
-        self.networkMonitor = networkMonitor
-        self.notificationManager = notificationManager
-        self.loginItemManager = loginItemManager
-        self.presentationPreferences = presentationPreferences
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override public func loadView() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 750))
-        view = root
-
-        let scrollView = NSScrollView(frame: root.bounds)
-        scrollView.autoresizingMask = [.width, .height]
-        scrollView.hasVerticalScroller = true
-        scrollView.drawsBackground = false
-        root.addSubview(scrollView)
-
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.documentView = stack
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor, constant: 14),
-            stack.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor, constant: -14),
-        ])
-
-        contentStack = stack
-
-        // 1. Header
-        let headerStack = NSStackView()
-        headerStack.orientation = .horizontal
-        headerStack.spacing = 8
-
-        let icon = NSImageView()
-        icon.setAccessibilityElement(true)
-        icon.setAccessibilityIdentifier("docknet.status.icon")
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 22),
-            icon.heightAnchor.constraint(equalToConstant: 22),
-        ])
-        iconView = icon
-        headerStack.addArrangedSubview(icon)
-
-        let title = NSTextField(labelWithString: "DockNet")
-        title.font = NSFont.boldSystemFont(ofSize: 14)
-        title.setAccessibilityIdentifier("docknet.header.title")
-        title.setAccessibilityLabel("DockNet Application")
-        headerTitle = title
-        headerStack.addArrangedSubview(title)
-
-        stack.addArrangedSubview(headerStack)
-        stack.addArrangedSubview(makeSeparator())
-
-        // 2. Primary Connection Section
-        let primarySectionLabel = NSTextField(labelWithString: "PRIMARY CONNECTION")
-        primarySectionLabel.font = NSFont.systemFont(ofSize: 10, weight: .bold)
-        primarySectionLabel.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(primarySectionLabel)
-
-        let primaryCard = NSStackView()
-        primaryCard.orientation = .vertical
-        primaryCard.alignment = .leading
-        primaryCard.spacing = 4
-        primaryCardsContainer = primaryCard
-        stack.addArrangedSubview(primaryCard)
-
-        stack.addArrangedSubview(makeSeparator())
-
-        // 3. Other Connections Section
-        let otherSectionLabel = NSTextField(labelWithString: "OTHER CONNECTIONS")
-        otherSectionLabel.font = NSFont.systemFont(ofSize: 10, weight: .bold)
-        otherSectionLabel.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(otherSectionLabel)
-
-        let otherContainer = NSStackView()
-        otherContainer.orientation = .vertical
-        otherContainer.alignment = .leading
-        otherContainer.spacing = 4
-        otherConnectionsContainer = otherContainer
-        stack.addArrangedSubview(otherContainer)
-
-        stack.addArrangedSubview(makeSeparator())
-
-        addPreferencesAndActions(to: stack)
-
-        update(with: networkMonitor.currentSnapshot)
-    }
-
-    private func addPreferencesAndActions(to stack: NSStackView) {
-        // 4. Preferences & Toggles
-        let notifyBtn = NSButton(checkboxWithTitle: "Notify on connection changes", target: self, action: #selector(toggleNotifications))
-        notifyBtn.setAccessibilityIdentifier("docknet.notifications")
-        notifyBtn.state = notificationManager.isPreferenceEnabled ? .on : .off
-        notificationsCheckbox = notifyBtn
-        stack.addArrangedSubview(notifyBtn)
-
-        let loginBtn = NSButton(checkboxWithTitle: "Launch at Login", target: self, action: #selector(toggleLogin))
-        loginBtn.setAccessibilityIdentifier("docknet.launchAtLogin")
-        loginBtn.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        launchAtLoginCheckbox = loginBtn
-        stack.addArrangedSubview(loginBtn)
-
-        // Display Style row
-        let styleRow = NSStackView()
-        styleRow.orientation = .horizontal
-        styleRow.spacing = 8
-        styleRow.alignment = .centerY
-
-        let styleLabel = NSTextField(labelWithString: "Display Style")
-        styleLabel.font = NSFont.systemFont(ofSize: 12)
-        styleRow.addArrangedSubview(styleLabel)
-
-        let segmented = NSSegmentedControl(
-            labels: ["Compact", "Detailed"],
-            trackingMode: .selectOne,
-            target: self,
-            action: #selector(handleStyleChanged(_:))
-        )
-        segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
-        segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
-        styleSegmented = segmented
-        styleRow.addArrangedSubview(segmented)
-
-        let compactBtn = NSButton(title: "Compact", target: self, action: #selector(selectCompactStyle))
-        compactBtn.setAccessibilityIdentifier("docknet.presentation.compact")
-        compactBtn.isHidden = true
-        styleRow.addArrangedSubview(compactBtn)
-
-        let detailedBtn = NSButton(title: "Detailed", target: self, action: #selector(selectDetailedStyle))
-        detailedBtn.setAccessibilityIdentifier("docknet.presentation.detailed")
-        detailedBtn.isHidden = true
-        styleRow.addArrangedSubview(detailedBtn)
-
-        stack.addArrangedSubview(styleRow)
-
-        stack.addArrangedSubview(makeSeparator())
-
-        // 5. Actions
-        let refreshBtn = NSButton(title: "Refresh", target: self, action: #selector(handleRefresh))
-        refreshBtn.bezelStyle = .rounded
-        refreshBtn.setAccessibilityIdentifier("docknet.refresh")
-        stack.addArrangedSubview(refreshBtn)
-
-        let settingsBtn = NSButton(title: "Open Network Settings…", target: self, action: #selector(handleSettings))
-        settingsBtn.bezelStyle = .rounded
-        settingsBtn.setAccessibilityIdentifier("docknet.openSettings")
-        stack.addArrangedSubview(settingsBtn)
-
-        let aboutBtn = NSButton(title: "About DockNet…", target: self, action: #selector(handleAbout))
-        aboutBtn.bezelStyle = .rounded
-        aboutBtn.setAccessibilityIdentifier("docknet.about")
-        stack.addArrangedSubview(aboutBtn)
-
-        let quitBtn = NSButton(title: "Quit DockNet", target: self, action: #selector(handleQuit))
-        quitBtn.bezelStyle = .rounded
-        quitBtn.setAccessibilityIdentifier("docknet.quit")
-        stack.addArrangedSubview(quitBtn)
-    }
-
-    public func update(with snapshot: NetworkSnapshot) {
-        let state = StatusIconState.from(snapshot: snapshot)
-        iconView.image = StatusIconRenderer.image(for: state)
-        iconView.setAccessibilityLabel(state.accessibilityLabel)
-        iconView.setAccessibilityValue(state.accessibilityLabel)
-        iconView.setAccessibilityTitle(state.accessibilityLabel)
-
-        // Clear previous cards
-        primaryCardsContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        otherConnectionsContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
-
-        // Update Primary Card
-        if snapshot.actualPrimaryIsWired, let active = snapshot.activePrimaryWiredInterface {
-            let typeLabel = NSTextField(labelWithString: "Ethernet")
-            typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-            typeLabel.setAccessibilityLabel("Ethernet")
-            typeLabel.setAccessibilityValue("Ethernet")
-            typeLabel.setAccessibilityTitle("Ethernet")
-            primaryCardsContainer.addArrangedSubview(typeLabel)
-
-            let ifaceDetail = "\(active.bsdName) · \(active.ipv4Address ?? "No IP")"
-            let ifaceLabel = NSTextField(labelWithString: ifaceDetail)
-            ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-            ifaceLabel.setAccessibilityLabel(ifaceDetail)
-            ifaceLabel.setAccessibilityValue(ifaceDetail)
-            ifaceLabel.setAccessibilityTitle(ifaceDetail)
-            primaryCardsContainer.addArrangedSubview(ifaceLabel)
-
-            let primaryBadge = NSTextField(labelWithString: "Primary")
-            primaryBadge.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).primary")
-            primaryBadge.setAccessibilityLabel("Primary")
-            primaryBadge.setAccessibilityValue("Primary")
-            primaryBadge.setAccessibilityTitle("Primary")
-            primaryCardsContainer.addArrangedSubview(primaryBadge)
-
-            let healthLabel = NSTextField(labelWithString: active.statusSummary)
-            healthLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).health")
-            healthLabel.setAccessibilityLabel(active.statusSummary)
-            healthLabel.setAccessibilityValue(active.statusSummary)
-            healthLabel.setAccessibilityTitle(active.statusSummary)
-            primaryCardsContainer.addArrangedSubview(healthLabel)
-
-            if let speed = active.linkSpeed {
-                let speedLabel = NSTextField(labelWithString: speed)
-                speedLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).speed")
-                speedLabel.setAccessibilityLabel(speed)
-                speedLabel.setAccessibilityValue(speed)
-                speedLabel.setAccessibilityTitle(speed)
-                primaryCardsContainer.addArrangedSubview(speedLabel)
-            }
-        } else if snapshot.isWifiPrimary {
-            let typeLabel = NSTextField(labelWithString: "Wi-Fi")
-            typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-            typeLabel.setAccessibilityLabel("Wi-Fi")
-            typeLabel.setAccessibilityValue("Wi-Fi")
-            typeLabel.setAccessibilityTitle("Wi-Fi")
-            primaryCardsContainer.addArrangedSubview(typeLabel)
-
-            let ifaceDetail = "\(snapshot.wifi.bsdName) · \(snapshot.wifi.primaryIPv4Address ?? "No IP")"
-            let ifaceLabel = NSTextField(labelWithString: ifaceDetail)
-            ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-            ifaceLabel.setAccessibilityLabel(ifaceDetail)
-            ifaceLabel.setAccessibilityValue(ifaceDetail)
-            ifaceLabel.setAccessibilityTitle(ifaceDetail)
-            primaryCardsContainer.addArrangedSubview(ifaceLabel)
-
-            let wifiHealth = NSTextField(labelWithString: "Connected · Primary")
-            wifiHealth.setAccessibilityIdentifier("docknet.wifi.health")
-            wifiHealth.setAccessibilityLabel("Connected · Primary")
-            wifiHealth.setAccessibilityValue("Primary")
-            wifiHealth.setAccessibilityTitle("Primary")
-            primaryCardsContainer.addArrangedSubview(wifiHealth)
-        } else {
-            let typeLabel = NSTextField(labelWithString: snapshot.isWifiPrimary ? "Wi-Fi" : (snapshot.actualPrimaryIsWired ? "Ethernet" : "Wi-Fi"))
-            typeLabel.setAccessibilityIdentifier("docknet.primary.type")
-            typeLabel.setAccessibilityLabel("Wi-Fi")
-            typeLabel.setAccessibilityValue("Wi-Fi")
-            typeLabel.setAccessibilityTitle("Wi-Fi")
-            primaryCardsContainer.addArrangedSubview(typeLabel)
-
-            let ifaceLabel = NSTextField(labelWithString: "Offline")
-            ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
-            primaryCardsContainer.addArrangedSubview(ifaceLabel)
+        public init(
+            networkMonitor: any NetworkMonitoringProtocol,
+            notificationManager: NotificationManager,
+            loginItemManager: LoginItemManager,
+            presentationPreferences: PresentationPreferences = PresentationPreferences()
+        ) {
+            self.networkMonitor = networkMonitor
+            self.notificationManager = notificationManager
+            self.loginItemManager = loginItemManager
+            self.presentationPreferences = presentationPreferences
+            notificationsCheckbox = NSButton(checkboxWithTitle: "Notify on connection changes", target: nil, action: nil)
+            launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch at Login", target: nil, action: nil)
+            super.init(nibName: nil, bundle: nil)
         }
 
-        updateOtherConnections(snapshot)
-
-        notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
-        loginItemManager.refreshStatus()
-        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        styleSegmented?.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
-    }
-
-    private func updateOtherConnections(_ snapshot: NetworkSnapshot) {
-        // Other connections:
-        let otherWired = snapshot.actualPrimaryIsWired
-            ? snapshot.wiredInterfaces.filter { !$0.isPrimary }
-            : snapshot.wiredInterfaces
-
-        for iface in otherWired {
-            let row = NSStackView()
-            row.orientation = .horizontal
-            row.spacing = 6
-
-            let nameLabel = NSTextField(labelWithString: iface.serviceName)
-            nameLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).name")
-            nameLabel.setAccessibilityLabel(iface.serviceName)
-            row.addArrangedSubview(nameLabel)
-
-            let healthLabel = NSTextField(labelWithString: iface.statusSummary)
-            healthLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).health")
-            healthLabel.setAccessibilityLabel(iface.statusSummary)
-            healthLabel.setAccessibilityValue(iface.statusSummary)
-            row.addArrangedSubview(healthLabel)
-
-            if iface.isPrimary {
-                let pBadge = NSTextField(labelWithString: "Primary")
-                pBadge.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).primary")
-                pBadge.setAccessibilityLabel("Primary")
-                row.addArrangedSubview(pBadge)
-            }
-
-            if let speed = iface.linkSpeed {
-                let speedLabel = NSTextField(labelWithString: speed)
-                speedLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).speed")
-                speedLabel.setAccessibilityLabel(speed)
-                row.addArrangedSubview(speedLabel)
-            }
-
-            otherConnectionsContainer.addArrangedSubview(row)
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
         }
 
-        if snapshot.actualPrimaryIsWired {
-            let wifiRow = NSStackView()
-            wifiRow.orientation = .horizontal
-            wifiRow.spacing = 6
+        override public func loadView() {
+            let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 750))
+            view = root
 
-            let wifiName = NSTextField(labelWithString: "Wi-Fi")
-            wifiRow.addArrangedSubview(wifiName)
+            let scrollView = NSScrollView(frame: root.bounds)
+            scrollView.autoresizingMask = [.width, .height]
+            scrollView.hasVerticalScroller = true
+            scrollView.drawsBackground = false
+            root.addSubview(scrollView)
 
-            let wifiHealth = NSTextField(labelWithString: snapshot.wifiStatusText)
-            wifiHealth.setAccessibilityIdentifier("docknet.wifi.health")
-            wifiHealth.setAccessibilityLabel(snapshot.wifiStatusText)
-            wifiHealth.setAccessibilityValue(snapshot.wifiStatusText)
-            wifiRow.addArrangedSubview(wifiHealth)
+            let stack = NSStackView()
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 10
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            scrollView.documentView = stack
 
-            otherConnectionsContainer.addArrangedSubview(wifiRow)
+            NSLayoutConstraint.activate([
+                stack.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor, constant: 14),
+                stack.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor, constant: 14),
+                stack.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor, constant: -14),
+            ])
+
+            // 1. Header
+            let headerStack = NSStackView()
+            headerStack.orientation = .horizontal
+            headerStack.spacing = 8
+
+            iconView.setAccessibilityElement(true)
+            iconView.setAccessibilityIdentifier("docknet.status.icon")
+            iconView.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                iconView.widthAnchor.constraint(equalToConstant: 22),
+                iconView.heightAnchor.constraint(equalToConstant: 22),
+            ])
+            headerStack.addArrangedSubview(iconView)
+
+            let title = NSTextField(labelWithString: "DockNet")
+            title.font = NSFont.boldSystemFont(ofSize: 14)
+            title.setAccessibilityIdentifier("docknet.header.title")
+            title.setAccessibilityLabel("DockNet Application")
+            headerStack.addArrangedSubview(title)
+
+            stack.addArrangedSubview(headerStack)
+            stack.addArrangedSubview(makeSeparator())
+
+            // 2. Primary Connection Section
+            let primarySectionLabel = NSTextField(labelWithString: "PRIMARY CONNECTION")
+            primarySectionLabel.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+            primarySectionLabel.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(primarySectionLabel)
+
+            primaryCardsContainer.orientation = .vertical
+            primaryCardsContainer.alignment = .leading
+            primaryCardsContainer.spacing = 4
+            stack.addArrangedSubview(primaryCardsContainer)
+
+            stack.addArrangedSubview(makeSeparator())
+
+            // 3. Other Connections Section
+            let otherSectionLabel = NSTextField(labelWithString: "OTHER CONNECTIONS")
+            otherSectionLabel.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+            otherSectionLabel.textColor = .secondaryLabelColor
+            stack.addArrangedSubview(otherSectionLabel)
+
+            otherConnectionsContainer.orientation = .vertical
+            otherConnectionsContainer.alignment = .leading
+            otherConnectionsContainer.spacing = 4
+            stack.addArrangedSubview(otherConnectionsContainer)
+
+            stack.addArrangedSubview(makeSeparator())
+
+            addPreferencesAndActions(to: stack)
+
+            update(with: networkMonitor.currentSnapshot)
         }
-    }
 
-    private func makeSeparator() -> NSBox {
-        let box = NSBox()
-        box.boxType = .separator
-        box.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            box.widthAnchor.constraint(equalToConstant: 312),
-        ])
-        return box
-    }
-
-    @objc private func toggleNotifications() {
-        let current = notificationManager.isPreferenceEnabled
-        Task { @MainActor in
-            _ = await notificationManager.setPreferenceEnabled(!current)
+        private func addPreferencesAndActions(to stack: NSStackView) {
+            // 4. Preferences & Toggles
+            notificationsCheckbox.target = self
+            notificationsCheckbox.action = #selector(toggleNotifications)
+            notificationsCheckbox.setAccessibilityIdentifier("docknet.notifications")
             notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
+            stack.addArrangedSubview(notificationsCheckbox)
+
+            launchAtLoginCheckbox.target = self
+            launchAtLoginCheckbox.action = #selector(toggleLogin)
+            launchAtLoginCheckbox.setAccessibilityIdentifier("docknet.launchAtLogin")
+            launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+            stack.addArrangedSubview(launchAtLoginCheckbox)
+
+            // Display Style row
+            let styleRow = NSStackView()
+            styleRow.orientation = .horizontal
+            styleRow.spacing = 8
+            styleRow.alignment = .centerY
+
+            let styleLabel = NSTextField(labelWithString: "Display Style")
+            styleLabel.font = NSFont.systemFont(ofSize: 12)
+            styleRow.addArrangedSubview(styleLabel)
+
+            let segmented = NSSegmentedControl(
+                labels: ["Compact", "Detailed"],
+                trackingMode: .selectOne,
+                target: self,
+                action: #selector(handleStyleChanged(_:))
+            )
+            segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+            segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
+            styleSegmented = segmented
+            styleRow.addArrangedSubview(segmented)
+
+            let compactBtn = NSButton(title: "Compact", target: self, action: #selector(selectCompactStyle))
+            compactBtn.setAccessibilityIdentifier("docknet.presentation.compact")
+            compactBtn.isHidden = true
+            styleRow.addArrangedSubview(compactBtn)
+
+            let detailedBtn = NSButton(title: "Detailed", target: self, action: #selector(selectDetailedStyle))
+            detailedBtn.setAccessibilityIdentifier("docknet.presentation.detailed")
+            detailedBtn.isHidden = true
+            styleRow.addArrangedSubview(detailedBtn)
+
+            stack.addArrangedSubview(styleRow)
+
+            stack.addArrangedSubview(makeSeparator())
+
+            // 5. Actions
+            let refreshBtn = NSButton(title: "Refresh", target: self, action: #selector(handleRefresh))
+            refreshBtn.bezelStyle = .rounded
+            refreshBtn.setAccessibilityIdentifier("docknet.refresh")
+            stack.addArrangedSubview(refreshBtn)
+
+            let settingsBtn = NSButton(title: "Open Network Settings…", target: self, action: #selector(handleSettings))
+            settingsBtn.bezelStyle = .rounded
+            settingsBtn.setAccessibilityIdentifier("docknet.openSettings")
+            stack.addArrangedSubview(settingsBtn)
+
+            let aboutBtn = NSButton(title: "About DockNet…", target: self, action: #selector(handleAbout))
+            aboutBtn.bezelStyle = .rounded
+            aboutBtn.setAccessibilityIdentifier("docknet.about")
+            stack.addArrangedSubview(aboutBtn)
+
+            let quitBtn = NSButton(title: "Quit DockNet", target: self, action: #selector(handleQuit))
+            quitBtn.bezelStyle = .rounded
+            quitBtn.setAccessibilityIdentifier("docknet.quit")
+            stack.addArrangedSubview(quitBtn)
+        }
+
+        public func update(with snapshot: NetworkSnapshot) {
+            let state = StatusIconState.from(snapshot: snapshot)
+            iconView.image = StatusIconRenderer.image(for: state)
+            iconView.setAccessibilityLabel(state.accessibilityLabel)
+            iconView.setAccessibilityValue(state.accessibilityLabel)
+            iconView.setAccessibilityTitle(state.accessibilityLabel)
+
+            // Clear previous cards
+            primaryCardsContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
+            otherConnectionsContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+            // Update Primary Card
+            if snapshot.actualPrimaryIsWired, let active = snapshot.activePrimaryWiredInterface {
+                let typeLabel = NSTextField(labelWithString: "Ethernet")
+                typeLabel.setAccessibilityIdentifier("docknet.primary.type")
+                typeLabel.setAccessibilityLabel("Ethernet")
+                typeLabel.setAccessibilityValue("Ethernet")
+                typeLabel.setAccessibilityTitle("Ethernet")
+                primaryCardsContainer.addArrangedSubview(typeLabel)
+
+                let ifaceDetail = "\(active.bsdName) · \(active.ipv4Address ?? "No IP")"
+                let ifaceLabel = NSTextField(labelWithString: ifaceDetail)
+                ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
+                ifaceLabel.setAccessibilityLabel(ifaceDetail)
+                ifaceLabel.setAccessibilityValue(ifaceDetail)
+                ifaceLabel.setAccessibilityTitle(ifaceDetail)
+                primaryCardsContainer.addArrangedSubview(ifaceLabel)
+
+                let primaryBadge = NSTextField(labelWithString: "Primary")
+                primaryBadge.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).primary")
+                primaryBadge.setAccessibilityLabel("Primary")
+                primaryBadge.setAccessibilityValue("Primary")
+                primaryBadge.setAccessibilityTitle("Primary")
+                primaryCardsContainer.addArrangedSubview(primaryBadge)
+
+                let healthLabel = NSTextField(labelWithString: active.statusSummary)
+                healthLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).health")
+                healthLabel.setAccessibilityLabel(active.statusSummary)
+                healthLabel.setAccessibilityValue(active.statusSummary)
+                healthLabel.setAccessibilityTitle(active.statusSummary)
+                primaryCardsContainer.addArrangedSubview(healthLabel)
+
+                if let speed = active.linkSpeed {
+                    let speedLabel = NSTextField(labelWithString: speed)
+                    speedLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).speed")
+                    speedLabel.setAccessibilityLabel(speed)
+                    speedLabel.setAccessibilityValue(speed)
+                    speedLabel.setAccessibilityTitle(speed)
+                    primaryCardsContainer.addArrangedSubview(speedLabel)
+                }
+            } else if snapshot.isWifiPrimary {
+                let typeLabel = NSTextField(labelWithString: "Wi-Fi")
+                typeLabel.setAccessibilityIdentifier("docknet.primary.type")
+                typeLabel.setAccessibilityLabel("Wi-Fi")
+                typeLabel.setAccessibilityValue("Wi-Fi")
+                typeLabel.setAccessibilityTitle("Wi-Fi")
+                primaryCardsContainer.addArrangedSubview(typeLabel)
+
+                let ifaceDetail = "\(snapshot.wifi.bsdName) · \(snapshot.wifi.primaryIPv4Address ?? "No IP")"
+                let ifaceLabel = NSTextField(labelWithString: ifaceDetail)
+                ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
+                ifaceLabel.setAccessibilityLabel(ifaceDetail)
+                ifaceLabel.setAccessibilityValue(ifaceDetail)
+                ifaceLabel.setAccessibilityTitle(ifaceDetail)
+                primaryCardsContainer.addArrangedSubview(ifaceLabel)
+
+                let wifiHealth = NSTextField(labelWithString: "Connected · Primary")
+                wifiHealth.setAccessibilityIdentifier("docknet.wifi.health")
+                wifiHealth.setAccessibilityLabel("Connected · Primary")
+                wifiHealth.setAccessibilityValue("Primary")
+                wifiHealth.setAccessibilityTitle("Primary")
+                primaryCardsContainer.addArrangedSubview(wifiHealth)
+            } else {
+                let typeLabel = NSTextField(labelWithString: snapshot.isWifiPrimary ? "Wi-Fi" : (snapshot.actualPrimaryIsWired ? "Ethernet" : "Wi-Fi"))
+                typeLabel.setAccessibilityIdentifier("docknet.primary.type")
+                typeLabel.setAccessibilityLabel("Wi-Fi")
+                typeLabel.setAccessibilityValue("Wi-Fi")
+                typeLabel.setAccessibilityTitle("Wi-Fi")
+                primaryCardsContainer.addArrangedSubview(typeLabel)
+
+                let ifaceLabel = NSTextField(labelWithString: "Offline")
+                ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
+                primaryCardsContainer.addArrangedSubview(ifaceLabel)
+            }
+
+            updateOtherConnections(snapshot)
+
+            notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
+            loginItemManager.refreshStatus()
+            launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+            styleSegmented?.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+        }
+
+        private func updateOtherConnections(_ snapshot: NetworkSnapshot) {
+            // Other connections:
+            let otherWired = snapshot.actualPrimaryIsWired
+                ? snapshot.wiredInterfaces.filter { !$0.isPrimary }
+                : snapshot.wiredInterfaces
+
+            for iface in otherWired {
+                let row = NSStackView()
+                row.orientation = .horizontal
+                row.spacing = 6
+
+                let nameLabel = NSTextField(labelWithString: iface.serviceName)
+                nameLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).name")
+                nameLabel.setAccessibilityLabel(iface.serviceName)
+                row.addArrangedSubview(nameLabel)
+
+                let healthLabel = NSTextField(labelWithString: iface.statusSummary)
+                healthLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).health")
+                healthLabel.setAccessibilityLabel(iface.statusSummary)
+                healthLabel.setAccessibilityValue(iface.statusSummary)
+                row.addArrangedSubview(healthLabel)
+
+                if iface.isPrimary {
+                    let pBadge = NSTextField(labelWithString: "Primary")
+                    pBadge.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).primary")
+                    pBadge.setAccessibilityLabel("Primary")
+                    row.addArrangedSubview(pBadge)
+                }
+
+                if let speed = iface.linkSpeed {
+                    let speedLabel = NSTextField(labelWithString: speed)
+                    speedLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).speed")
+                    speedLabel.setAccessibilityLabel(speed)
+                    row.addArrangedSubview(speedLabel)
+                }
+
+                otherConnectionsContainer.addArrangedSubview(row)
+            }
+
+            if snapshot.actualPrimaryIsWired {
+                let wifiRow = NSStackView()
+                wifiRow.orientation = .horizontal
+                wifiRow.spacing = 6
+
+                let wifiName = NSTextField(labelWithString: "Wi-Fi")
+                wifiRow.addArrangedSubview(wifiName)
+
+                let wifiHealth = NSTextField(labelWithString: snapshot.wifiStatusText)
+                wifiHealth.setAccessibilityIdentifier("docknet.wifi.health")
+                wifiHealth.setAccessibilityLabel(snapshot.wifiStatusText)
+                wifiHealth.setAccessibilityValue(snapshot.wifiStatusText)
+                wifiRow.addArrangedSubview(wifiHealth)
+
+                otherConnectionsContainer.addArrangedSubview(wifiRow)
+            }
+        }
+
+        private func makeSeparator() -> NSBox {
+            let box = NSBox()
+            box.boxType = .separator
+            box.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                box.widthAnchor.constraint(equalToConstant: 312),
+            ])
+            return box
+        }
+
+        @objc private func toggleNotifications() {
+            let current = notificationManager.isPreferenceEnabled
+            Task { @MainActor in
+                _ = await notificationManager.setPreferenceEnabled(!current)
+                notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
+            }
+        }
+
+        @objc private func toggleLogin() {
+            loginItemManager.toggleLaunchAtLogin()
+            loginItemManager.refreshStatus()
+            launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+        }
+
+        @objc private func handleRefresh() {
+            networkMonitor.refresh()
+        }
+
+        @objc private func handleSettings() {
+            WorkspaceURLOpener().openNetworkSettings()
+        }
+
+        @objc private func handleAbout() {
+            AboutWindowController.shared.showAboutWindow()
+        }
+
+        @objc private func handleQuit() {
+            NSApp.terminate(nil)
+        }
+
+        @objc private func handleStyleChanged(_ sender: NSSegmentedControl) {
+            let newStyle: PresentationStyle = (sender.selectedSegment == 0) ? .compact : .detailed
+            presentationPreferences.style = newStyle
+        }
+
+        @objc private func selectCompactStyle() {
+            presentationPreferences.style = .compact
+            styleSegmented?.selectedSegment = 0
+        }
+
+        @objc private func selectDetailedStyle() {
+            presentationPreferences.style = .detailed
+            styleSegmented?.selectedSegment = 1
         }
     }
-
-    @objc private func toggleLogin() {
-        loginItemManager.toggleLaunchAtLogin()
-        loginItemManager.refreshStatus()
-        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-    }
-
-    @objc private func handleRefresh() {
-        networkMonitor.refresh()
-    }
-
-    @objc private func handleSettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")
-            ?? URL(string: "x-apple.systempreferences:")!
-        WorkspaceURLOpener().open(url)
-    }
-
-    @objc private func handleAbout() {
-        AboutWindowController.shared.showAboutWindow()
-    }
-
-    @objc private func handleQuit() {
-        NSApp.terminate(nil)
-    }
-
-    @objc private func handleStyleChanged(_ sender: NSSegmentedControl) {
-        let newStyle: PresentationStyle = (sender.selectedSegment == 0) ? .compact : .detailed
-        presentationPreferences.style = newStyle
-    }
-
-    @objc private func selectCompactStyle() {
-        presentationPreferences.style = .compact
-        styleSegmented?.selectedSegment = 0
-    }
-
-    @objc private func selectDetailedStyle() {
-        presentationPreferences.style = .detailed
-        styleSegmented?.selectedSegment = 1
-    }
-}
+#endif

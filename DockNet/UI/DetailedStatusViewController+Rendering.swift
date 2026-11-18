@@ -1,32 +1,63 @@
 import AppKit
 
 extension DetailedStatusViewController {
-    func renderPrimaryWired(_ active: WiredInterfaceState) {
+    private func statusTone(for health: EthernetHealthState) -> StatusIndicatorView.Tone {
+        switch health {
+        case .ready: return .green
+        case .linkUp, .obtainingDHCP, .configured: return .orange
+        case .degraded: return .red
+        default: return .gray
+        }
+    }
+
+    private func makeTopStatusRow(
+        tone: StatusIndicatorView.Tone,
+        nameLabel: NSTextField,
+        trailingView: NSView
+    ) -> NSStackView {
         let topRow = NSStackView()
         topRow.orientation = .horizontal
         topRow.spacing = 6
         topRow.alignment = .centerY
-
-        let tone: StatusIndicatorView.Tone
-        switch active.health {
-        case .ready: tone = .green
-        case .linkUp, .obtainingDHCP, .configured: tone = .orange
-        case .degraded: tone = .red
-        default: tone = .gray
-        }
-
-        let dot = StatusIndicatorView(tone: tone)
-        topRow.addArrangedSubview(dot)
-
-        let nameLabel = NSTextField(labelWithString: active.serviceName)
-        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        topRow.translatesAutoresizingMaskIntoConstraints = false
+        topRow.addArrangedSubview(StatusIndicatorView(tone: tone))
         topRow.addArrangedSubview(nameLabel)
+        trailingView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        topRow.addArrangedSubview(trailingView)
+        return topRow
+    }
 
+    private func makeTruncatingLabel(
+        _ text: String,
+        font: NSFont,
+        color: NSColor = .labelColor,
+        toolTip: String? = nil
+    ) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = font
+        label.textColor = color
+        label.lineBreakMode = .byTruncatingTail
+        label.usesSingleLineMode = true
+        label.cell?.truncatesLastVisibleLine = true
+        if let tip = toolTip {
+            label.toolTip = tip
+        }
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return label
+    }
+
+    func renderPrimaryWired(_ active: WiredInterfaceState) {
+        let nameLabel = makeTruncatingLabel(
+            active.serviceName,
+            font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            toolTip: active.serviceName
+        )
         let badge = makeBadge(title: "Primary", tone: .green)
         badge.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).primary")
-        topRow.addArrangedSubview(badge)
 
+        let topRow = makeTopStatusRow(tone: statusTone(for: active.health), nameLabel: nameLabel, trailingView: badge)
         primaryContainer.addArrangedSubview(topRow)
+        topRow.widthAnchor.constraint(lessThanOrEqualTo: primaryContainer.widthAnchor).isActive = true
 
         let typeLabel = NSTextField(labelWithString: "Ethernet")
         typeLabel.setAccessibilityIdentifier("docknet.primary.type")
@@ -34,23 +65,28 @@ extension DetailedStatusViewController {
         primaryContainer.addArrangedSubview(typeLabel)
 
         let ifaceText = "Ethernet · \(active.bsdName)"
-        let ifaceLabel = NSTextField(labelWithString: ifaceText)
-        ifaceLabel.font = NSFont.systemFont(ofSize: 12)
-        ifaceLabel.textColor = .secondaryLabelColor
+        let ifaceLabel = makeTruncatingLabel(
+            ifaceText,
+            font: NSFont.systemFont(ofSize: 12),
+            color: .secondaryLabelColor
+        )
         ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
         ifaceLabel.setAccessibilityLabel(ifaceText)
         primaryContainer.addArrangedSubview(ifaceLabel)
 
-        let ipText = active.ipv4Address ?? "No IP"
-        let ipLabel = NSTextField(labelWithString: ipText)
-        ipLabel.font = NSFont.systemFont(ofSize: 12)
-        ipLabel.textColor = .secondaryLabelColor
+        let ipLabel = makeTruncatingLabel(
+            active.ipv4Address ?? "No IP",
+            font: NSFont.systemFont(ofSize: 12),
+            color: .secondaryLabelColor
+        )
         primaryContainer.addArrangedSubview(ipLabel)
 
         if let speed = active.linkSpeed {
-            let speedLabel = NSTextField(labelWithString: speed)
-            speedLabel.font = NSFont.systemFont(ofSize: 12)
-            speedLabel.textColor = .secondaryLabelColor
+            let speedLabel = makeTruncatingLabel(
+                speed,
+                font: NSFont.systemFont(ofSize: 12),
+                color: .secondaryLabelColor
+            )
             speedLabel.setAccessibilityIdentifier("docknet.wired.\(active.bsdName).speed")
             primaryContainer.addArrangedSubview(speedLabel)
         }
@@ -61,18 +97,23 @@ extension DetailedStatusViewController {
         topRow.orientation = .horizontal
         topRow.spacing = 6
         topRow.alignment = .centerY
+        topRow.translatesAutoresizingMaskIntoConstraints = false
 
         let dot = StatusIndicatorView(tone: .green)
         topRow.addArrangedSubview(dot)
 
-        let nameLabel = NSTextField(labelWithString: "Wi-Fi")
-        nameLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let nameLabel = makeTruncatingLabel(
+            "Wi-Fi",
+            font: NSFont.systemFont(ofSize: 13, weight: .semibold)
+        )
         topRow.addArrangedSubview(nameLabel)
 
         let badge = makeBadge(title: "Primary", tone: .green)
+        badge.setContentCompressionResistancePriority(.required, for: .horizontal)
         topRow.addArrangedSubview(badge)
 
         primaryContainer.addArrangedSubview(topRow)
+        topRow.widthAnchor.constraint(lessThanOrEqualTo: primaryContainer.widthAnchor).isActive = true
 
         let typeLabel = NSTextField(labelWithString: "Wi-Fi")
         typeLabel.setAccessibilityIdentifier("docknet.primary.type")
@@ -80,9 +121,11 @@ extension DetailedStatusViewController {
         primaryContainer.addArrangedSubview(typeLabel)
 
         let ifaceText = "\(snapshot.wifi.bsdName) · \(snapshot.wifi.primaryIPv4Address ?? "No IP")"
-        let ifaceLabel = NSTextField(labelWithString: ifaceText)
-        ifaceLabel.font = NSFont.systemFont(ofSize: 12)
-        ifaceLabel.textColor = .secondaryLabelColor
+        let ifaceLabel = makeTruncatingLabel(
+            ifaceText,
+            font: NSFont.systemFont(ofSize: 12),
+            color: .secondaryLabelColor
+        )
         ifaceLabel.setAccessibilityIdentifier("docknet.primary.interface")
         ifaceLabel.setAccessibilityLabel(ifaceText)
         primaryContainer.addArrangedSubview(ifaceLabel)
@@ -128,37 +171,24 @@ extension DetailedStatusViewController {
         row.spacing = 1
         row.translatesAutoresizingMaskIntoConstraints = false
 
-        let topRow = NSStackView()
-        topRow.orientation = .horizontal
-        topRow.spacing = 6
-        topRow.alignment = .centerY
-
-        let tone: StatusIndicatorView.Tone
-        switch iface.health {
-        case .ready: tone = .green
-        case .linkUp, .obtainingDHCP, .configured: tone = .orange
-        case .degraded: tone = .red
-        default: tone = .gray
-        }
-
-        let dot = StatusIndicatorView(tone: tone)
-        topRow.addArrangedSubview(dot)
-
-        let name = NSTextField(labelWithString: iface.serviceName)
-        name.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let name = makeTruncatingLabel(
+            iface.serviceName,
+            font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            toolTip: iface.serviceName
+        )
         name.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).name")
-        topRow.addArrangedSubview(name)
 
         let bsdLabel = NSTextField(labelWithString: iface.bsdName)
         bsdLabel.font = NSFont.systemFont(ofSize: 11)
         bsdLabel.textColor = .secondaryLabelColor
-        topRow.addArrangedSubview(bsdLabel)
 
+        let topRow = makeTopStatusRow(tone: statusTone(for: iface.health), nameLabel: name, trailingView: bsdLabel)
         row.addArrangedSubview(topRow)
+        topRow.widthAnchor.constraint(lessThanOrEqualTo: row.widthAnchor).isActive = true
 
         var detailParts: [String] = []
-        if let ip = iface.ipv4Address {
-            detailParts.append(ip)
+        if let ipAddress = iface.ipv4Address {
+            detailParts.append(ipAddress)
         }
         detailParts.append(iface.statusSummary)
         if let speed = iface.linkSpeed {
@@ -166,13 +196,17 @@ extension DetailedStatusViewController {
         }
 
         let detailText = "     " + detailParts.joined(separator: " · ")
-        let detailLabel = NSTextField(labelWithString: detailText)
-        detailLabel.font = NSFont.systemFont(ofSize: 11)
-        detailLabel.textColor = .secondaryLabelColor
+        let detailLabel = makeTruncatingLabel(
+            detailText,
+            font: NSFont.systemFont(ofSize: 11),
+            color: .secondaryLabelColor,
+            toolTip: detailParts.joined(separator: " · ")
+        )
         detailLabel.setAccessibilityIdentifier("docknet.wired.\(iface.bsdName).health")
         row.addArrangedSubview(detailLabel)
 
         otherContainer.addArrangedSubview(row)
+        row.widthAnchor.constraint(equalTo: otherContainer.widthAnchor).isActive = true
     }
 
     func renderOtherWifiStandby(_ snapshot: NetworkSnapshot) {
@@ -186,20 +220,25 @@ extension DetailedStatusViewController {
         topRow.orientation = .horizontal
         topRow.spacing = 6
         topRow.alignment = .centerY
+        topRow.translatesAutoresizingMaskIntoConstraints = false
 
         let dot = StatusIndicatorView(tone: .gray)
         topRow.addArrangedSubview(dot)
 
-        let name = NSTextField(labelWithString: "Wi-Fi")
-        name.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let name = makeTruncatingLabel(
+            "Wi-Fi",
+            font: NSFont.systemFont(ofSize: 12, weight: .medium)
+        )
         topRow.addArrangedSubview(name)
 
         let bsdLabel = NSTextField(labelWithString: snapshot.wifi.bsdName)
         bsdLabel.font = NSFont.systemFont(ofSize: 11)
         bsdLabel.textColor = .secondaryLabelColor
+        bsdLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         topRow.addArrangedSubview(bsdLabel)
 
         row.addArrangedSubview(topRow)
+        topRow.widthAnchor.constraint(lessThanOrEqualTo: row.widthAnchor).isActive = true
 
         var detailParts: [String] = []
         if let ip = snapshot.wifi.primaryIPv4Address {
@@ -208,12 +247,15 @@ extension DetailedStatusViewController {
         detailParts.append("Standby")
 
         let detailText = "     " + detailParts.joined(separator: " · ")
-        let detailLabel = NSTextField(labelWithString: detailText)
-        detailLabel.font = NSFont.systemFont(ofSize: 11)
-        detailLabel.textColor = .secondaryLabelColor
+        let detailLabel = makeTruncatingLabel(
+            detailText,
+            font: NSFont.systemFont(ofSize: 11),
+            color: .secondaryLabelColor
+        )
         detailLabel.setAccessibilityIdentifier("docknet.wifi.health")
         row.addArrangedSubview(detailLabel)
 
         otherContainer.addArrangedSubview(row)
+        row.widthAnchor.constraint(equalTo: otherContainer.widthAnchor).isActive = true
     }
 }

@@ -81,4 +81,40 @@ final class SystemConfigurationMonitorTests: XCTestCase {
         wait(for: [stopped], timeout: 5)
         monitor.stop()
     }
+
+    func testMonitorAndNetworkMonitorDeallocateWithoutLeaks() {
+        final class WeakBox<T: AnyObject> {
+            weak var value: T?
+        }
+
+        let scBox = WeakBox<SystemConfigurationMonitor>()
+        let nmBox = WeakBox<NetworkMonitor>()
+
+        func runMonitorCycle() {
+            let scDone = expectation(description: "sc monitor delivered snapshot")
+            let sc = SystemConfigurationMonitor()
+            scBox.value = sc
+            sc.onSnapshotUpdated = { _ in scDone.fulfill() }
+            sc.start()
+            wait(for: [scDone], timeout: 5)
+            sc.stop()
+
+            let nmDone = expectation(description: "network monitor delivered snapshot")
+            let nm = NetworkMonitor()
+            nmBox.value = nm
+            nm.onSnapshotUpdated = { _ in nmDone.fulfill() }
+            nm.startMonitoring()
+            wait(for: [nmDone], timeout: 5)
+            nm.stopMonitoring()
+        }
+
+        autoreleasepool {
+            runMonitorCycle()
+        }
+
+        // Allow any in-flight deliveryQueue work items to finish before checking weak references
+        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertNil(scBox.value, "SystemConfigurationMonitor should deallocate after stop")
+        XCTAssertNil(nmBox.value, "NetworkMonitor should deallocate after stopMonitoring")
+    }
 }

@@ -7,11 +7,12 @@ public enum PresentationStyle: String, CaseIterable, Sendable {
 }
 
 /// Lightweight owner and coordinator for user presentation style preferences.
-/// UserDefaults provides thread-safe access; this object has no other mutable state.
-public final class PresentationPreferences: @unchecked Sendable {
+/// `nonisolated(unsafe)` scopes the concurrency bypass strictly to the immutable `UserDefaults` reference
+/// (assigned once in `init`); all reads/writes delegate to `NSUserDefaults`, which Apple documents as thread-safe.
+public final class PresentationPreferences: Sendable {
     public static let userDefaultsKey = "docknet.presentation.style"
 
-    private let defaults: UserDefaults
+    private nonisolated(unsafe) let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
