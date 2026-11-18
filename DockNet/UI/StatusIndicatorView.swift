@@ -36,6 +36,7 @@ public final class StatusIndicatorView: NSView {
         self.tone = tone
         super.init(frame: NSRect(x: 0, y: 0, width: 8, height: 8))
         translatesAutoresizingMaskIntoConstraints = false
+        setAccessibilityElement(false)
     }
 
     @available(*, unavailable)

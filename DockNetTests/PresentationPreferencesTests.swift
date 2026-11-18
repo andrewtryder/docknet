@@ -8,14 +8,18 @@ final class PresentationPreferencesTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        suiteName = "com.andrewtryder.docknet.tests.presentation.\(UUID().uuidString)"
-        testDefaults = UserDefaults(suiteName: suiteName)!
+        MainActor.assumeIsolated {
+            suiteName = "com.andrewtryder.docknet.tests.presentation.\(UUID().uuidString)"
+            testDefaults = UserDefaults(suiteName: suiteName)!
+        }
     }
 
     override func tearDown() {
-        testDefaults.removePersistentDomain(forName: suiteName)
-        testDefaults = nil
-        suiteName = nil
+        MainActor.assumeIsolated {
+            testDefaults.removePersistentDomain(forName: suiteName)
+            testDefaults = nil
+            suiteName = nil
+        }
         super.tearDown()
     }
 
@@ -359,6 +363,258 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertTrue(vc.view.descendants(matching: "utun5").isEmpty)
         XCTAssertTrue(vc.view.descendants(matching: "Tailscale").isEmpty)
         XCTAssertTrue(vc.view.descendants(matching: "VPN").isEmpty)
+    }
+}
+
+@MainActor
+final class DetailedPresentationLifecycleTests: XCTestCase {
+    private var testDefaults: UserDefaults!
+    private var suiteName: String!
+
+    override func setUp() {
+        super.setUp()
+        MainActor.assumeIsolated {
+            suiteName = "com.andrewtryder.docknet.tests.lifecycle.\(UUID().uuidString)"
+            testDefaults = UserDefaults(suiteName: suiteName)!
+        }
+    }
+
+    override func tearDown() {
+        MainActor.assumeIsolated {
+            testDefaults.removePersistentDomain(forName: suiteName)
+            testDefaults = nil
+            suiteName = nil
+        }
+        super.tearDown()
+    }
+
+    /// 12. CompactMenuBuilder uses valid compile-time selectors handled by StatusItemController
+    func testCompactMenuBuilderUsesValidCompileTimeSelectors() throws {
+        let mockMonitor = MockNetworkMonitor(scenario: "oneEthernetReady")
+        let notificationMgr = NotificationManager(
+            scheduler: MockNotificationScheduler(status: .notDetermined),
+            userDefaults: testDefaults,
+            debounceInterval: 0
+        )
+        let loginMgr = LoginItemManager()
+        let prefs = PresentationPreferences(defaults: testDefaults)
+        prefs.style = .compact
+
+        let controller = StatusItemController(
+            networkMonitor: mockMonitor,
+            notificationManager: notificationMgr,
+            loginItemManager: loginMgr,
+            presentationPreferences: prefs
+        )
+
+        let menu = NSMenu()
+        CompactMenuBuilder.build(
+            menu: menu,
+            snapshot: mockMonitor.currentSnapshot,
+            notificationManager: notificationMgr,
+            loginItemManager: loginMgr,
+            presentationPreferences: prefs,
+            target: controller
+        )
+
+        let expectedTitles = [
+            "Notify on connection changes",
+            "Launch at Login",
+            "Refresh",
+            "Open Network Settings…",
+            "About DockNet…",
+            "Quit DockNet",
+        ]
+        for title in expectedTitles {
+            let item = try XCTUnwrap(menu.items.first(where: { $0.title == title }), "Missing item \(title)")
+            let action = try XCTUnwrap(item.action, "Item \(title) missing action")
+            XCTAssertTrue(controller.responds(to: action), "Controller does not respond to \(action) for \(title)")
+        }
+
+        let displaySubmenu = try XCTUnwrap(menu.items.first(where: { $0.title == "Display Style" })?.submenu)
+        for styleTitle in ["Compact", "Detailed"] {
+            let item = try XCTUnwrap(displaySubmenu.items.first(where: { $0.title == styleTitle }))
+            let action = try XCTUnwrap(item.action, "Style item \(styleTitle) missing action")
+            XCTAssertTrue(controller.responds(to: action), "Controller does not respond to \(action) for \(styleTitle)")
+        }
+    }
+
+    /// 13. DetailedStatusViewController skips connection rebuild when snapshot is semantically identical
+    func testDetailedViewControllerSkipsRebuildForSemanticallyIdenticalSnapshot() {
+        let mockMonitor = MockNetworkMonitor(scenario: "oneEthernetReady")
+        let notificationMgr = NotificationManager(
+            scheduler: MockNotificationScheduler(status: .notDetermined),
+            userDefaults: testDefaults,
+            debounceInterval: 0
+        )
+        let prefs = PresentationPreferences(defaults: testDefaults)
+        prefs.style = .detailed
+
+        let vc = DetailedStatusViewController(
+            networkMonitor: mockMonitor,
+            notificationManager: notificationMgr,
+            loginItemManager: LoginItemManager(),
+            presentationPreferences: prefs,
+            onStyleChanged: { _ in }
+        )
+        _ = vc.view
+
+        let snap1 = mockMonitor.currentSnapshot
+        vc.update(with: snap1)
+        let primaryBefore = vc.primaryContainer.arrangedSubviews
+        let otherBefore = vc.otherContainer.arrangedSubviews
+        XCTAssertFalse(primaryBefore.isEmpty)
+        XCTAssertFalse(otherBefore.isEmpty)
+
+        // Create a semantically identical snapshot with a later capture timestamp
+        let snap2 = NetworkSnapshot(
+            wiredInterfaces: snap1.wiredInterfaces,
+            wifi: snap1.wifi,
+            systemPrimaryInterface: snap1.systemPrimaryInterface,
+            systemPrimaryServiceID: snap1.systemPrimaryServiceID,
+            systemPrimaryServiceName: snap1.systemPrimaryServiceName,
+            physicalTransport: snap1.physicalTransport,
+            globalIPv4Router: snap1.globalIPv4Router,
+            timestamp: snap1.timestamp.addingTimeInterval(60)
+        )
+        vc.update(with: snap2)
+
+        let primaryAfterSame = vc.primaryContainer.arrangedSubviews
+        let otherAfterSame = vc.otherContainer.arrangedSubviews
+        XCTAssertEqual(primaryBefore.count, primaryAfterSame.count)
+        XCTAssertEqual(otherBefore.count, otherAfterSame.count)
+        for (lhs, rhs) in zip(primaryBefore, primaryAfterSame) {
+            XCTAssertTrue(lhs === rhs, "Primary subviews must not rebuild for semantically identical snapshot")
+        }
+        for (lhs, rhs) in zip(otherBefore, otherAfterSame) {
+            XCTAssertTrue(lhs === rhs, "Other subviews must not rebuild for semantically identical snapshot")
+        }
+
+        // Update with a genuinely different snapshot
+        let differentSnapshot = MockNetworkMonitor.makeSnapshot(for: "wifi")
+        vc.update(with: differentSnapshot)
+        let primaryAfterChange = vc.primaryContainer.arrangedSubviews
+        XCTAssertFalse(primaryAfterChange.isEmpty)
+        XCTAssertFalse(primaryBefore.first === primaryAfterChange.first)
+    }
+
+    /// 14. DetailedStatusViewController handles many adapters and very long service names in scroll view
+    func testDetailedViewControllerHandlesMultipleAdaptersAndLongServiceNames() throws {
+        let longName = String(repeating: "Thunderbolt Dock 10GbE Adapter ", count: 3)
+        XCTAssertGreaterThan(longName.count, 70)
+
+        let wifi = NetworkInterfaceInfo(
+            bsdName: "en0",
+            serviceName: "Wi-Fi",
+            serviceID: "WIFI-ID",
+            serviceOrder: 10,
+            enabled: true,
+            isLinkActive: true,
+            ipv4Addresses: ["192.168.88.148"],
+            subnetMasks: ["255.255.255.0"],
+            router: "192.168.88.1"
+        )
+
+        var wired: [WiredInterfaceState] = []
+        for idx in 1 ... 6 {
+            let bsd = "en\(idx + 3)"
+            let isFirst = (idx == 1)
+            wired.append(WiredInterfaceState(
+                serviceID: "SVC-\(idx)",
+                serviceName: isFirst ? longName : "Dock Ethernet Port \(idx) — Extra Descriptive Name",
+                bsdName: bsd,
+                enabled: true,
+                serviceOrder: idx,
+                linkActive: isFirst,
+                ipv4Address: isFirst ? "192.168.88.200" : nil,
+                gateway: isFirst ? "192.168.88.1" : nil,
+                health: isFirst ? .ready : .cableDisconnected,
+                isPreferred: isFirst,
+                isPrimary: isFirst,
+                linkSpeed: isFirst ? "10 Gbps Full Duplex" : nil,
+                isHardwarePresent: true
+            ))
+        }
+
+        let snapshot = NetworkSnapshot(
+            wiredInterfaces: wired,
+            wifi: wifi,
+            systemPrimaryInterface: "en4",
+            systemPrimaryServiceID: "SVC-1",
+            systemPrimaryServiceName: longName
+        )
+
+        let monitor = MockNetworkMonitor(scenario: "wifi")
+        monitor.setSnapshot(snapshot)
+        let notificationMgr = NotificationManager(
+            scheduler: MockNotificationScheduler(status: .notDetermined),
+            userDefaults: testDefaults,
+            debounceInterval: 0
+        )
+        let prefs = PresentationPreferences(defaults: testDefaults)
+        prefs.style = .detailed
+
+        let vc = DetailedStatusViewController(
+            networkMonitor: monitor,
+            notificationManager: notificationMgr,
+            loginItemManager: LoginItemManager(),
+            presentationPreferences: prefs,
+            onStyleChanged: { _ in }
+        )
+        _ = vc.view
+        vc.update(with: snapshot)
+        vc.view.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(vc.view.descendants(matching: "docknet.wired.en4.primary").isEmpty)
+        for idx in 2 ... 6 {
+            let bsd = "en\(idx + 3)"
+            XCTAssertFalse(
+                vc.otherContainer.descendants(matching: "docknet.wired.\(bsd).name").isEmpty,
+                "Missing adapter \(bsd) in otherContainer"
+            )
+        }
+
+        let scrollView = try XCTUnwrap(vc.view.subviews.first(where: { $0 is NSScrollView }) as? NSScrollView)
+        let docView = try XCTUnwrap(scrollView.documentView)
+        XCTAssertGreaterThan(docView.fittingSize.height, vc.view.bounds.height, "6 adapters should exceed 480pt and scroll")
+    }
+
+    /// 15. Presentation controllers release without retain cycles
+    func testPresentationControllersDeallocateCleanly() {
+        final class WeakBox<T: AnyObject> {
+            weak var value: T?
+        }
+
+        let popoverBox = WeakBox<DetailedPopoverController>()
+        let vcBox = WeakBox<DetailedStatusViewController>()
+
+        func instantiateAndLoad() {
+            let mockMonitor = MockNetworkMonitor(scenario: "wifi")
+            let notificationMgr = NotificationManager(
+                scheduler: MockNotificationScheduler(status: .notDetermined),
+                userDefaults: testDefaults,
+                debounceInterval: 0
+            )
+            let prefs = PresentationPreferences(defaults: testDefaults)
+            let popover = DetailedPopoverController(
+                networkMonitor: mockMonitor,
+                notificationManager: notificationMgr,
+                loginItemManager: LoginItemManager(),
+                presentationPreferences: prefs,
+                onStyleChanged: { _ in }
+            )
+            _ = popover.statusViewController.view
+            popoverBox.value = popover
+            vcBox.value = popover.statusViewController
+        }
+
+        autoreleasepool {
+            instantiateAndLoad()
+        }
+
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertNil(popoverBox.value, "DetailedPopoverController leaked")
+        XCTAssertNil(vcBox.value, "DetailedStatusViewController leaked")
     }
 }
 

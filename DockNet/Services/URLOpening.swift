@@ -7,6 +7,19 @@ public protocol URLOpening: Sendable {
     func open(_ url: URL) -> Bool
 }
 
+@MainActor
+public extension URLOpening {
+    @discardableResult
+    func openNetworkSettings() -> Bool {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")
+            ?? URL(string: "x-apple.systempreferences:")
+        else {
+            return false
+        }
+        return open(url)
+    }
+}
+
 /// Production URL opener utilizing NSWorkspace.
 public struct WorkspaceURLOpener: URLOpening {
     public init() {}
@@ -17,36 +30,38 @@ public struct WorkspaceURLOpener: URLOpening {
     }
 }
 
-/// Mock URL opener for unit and UI automation testing. All stored URLs are protected by `lock`.
-public final class MockURLOpener: @unchecked Sendable, URLOpening {
-    private let lock = NSLock()
-    private var _openedURLs: [URL] = []
+#if DEBUG
+    /// Mock URL opener for unit and UI automation testing. All stored URLs are protected by `lock`.
+    public final class MockURLOpener: @unchecked Sendable, URLOpening {
+        private let lock = NSLock()
+        private var _openedURLs: [URL] = []
 
-    public init() {}
+        public init() {}
 
-    @discardableResult
-    public func open(_ url: URL) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        _openedURLs.append(url)
-        return true
+        @discardableResult
+        public func open(_ url: URL) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            _openedURLs.append(url)
+            return true
+        }
+
+        public var openedURLs: [URL] {
+            lock.lock()
+            defer { lock.unlock() }
+            return _openedURLs
+        }
+
+        public var lastOpenedURL: URL? {
+            lock.lock()
+            defer { lock.unlock() }
+            return _openedURLs.last
+        }
+
+        public func reset() {
+            lock.lock()
+            defer { lock.unlock() }
+            _openedURLs.removeAll()
+        }
     }
-
-    public var openedURLs: [URL] {
-        lock.lock()
-        defer { lock.unlock() }
-        return _openedURLs
-    }
-
-    public var lastOpenedURL: URL? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _openedURLs.last
-    }
-
-    public func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        _openedURLs.removeAll()
-    }
-}
+#endif

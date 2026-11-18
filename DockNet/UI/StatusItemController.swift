@@ -148,9 +148,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc public func openNetworkSettingsAction() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension")
-            ?? URL(string: "x-apple.systempreferences:")!
-        WorkspaceURLOpener().open(url)
+        WorkspaceURLOpener().openNetworkSettings()
     }
 
     @objc public func openAboutAction() {

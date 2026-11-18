@@ -80,24 +80,40 @@ public enum CompactMenuBuilder {
                        presentationPreferences: presentationPreferences, target: target)
 
         // 4. Actions Section
-        let refreshItem = NSMenuItem(title: "Refresh", action: Selector(("refreshAction")), keyEquivalent: "r")
+        let refreshItem = NSMenuItem(
+            title: "Refresh",
+            action: #selector(StatusItemController.refreshAction),
+            keyEquivalent: "r"
+        )
         refreshItem.target = target
         refreshItem.setAccessibilityIdentifier("docknet.refresh")
         menu.addItem(refreshItem)
 
-        let settingsItem = NSMenuItem(title: "Open Network Settings…", action: Selector(("openNetworkSettingsAction")), keyEquivalent: "")
+        let settingsItem = NSMenuItem(
+            title: "Open Network Settings…",
+            action: #selector(StatusItemController.openNetworkSettingsAction),
+            keyEquivalent: ""
+        )
         settingsItem.target = target
         settingsItem.setAccessibilityIdentifier("docknet.openSettings")
         menu.addItem(settingsItem)
 
-        let aboutItem = NSMenuItem(title: "About DockNet…", action: Selector(("openAboutAction")), keyEquivalent: "")
+        let aboutItem = NSMenuItem(
+            title: "About DockNet…",
+            action: #selector(StatusItemController.openAboutAction),
+            keyEquivalent: ""
+        )
         aboutItem.target = target
         aboutItem.setAccessibilityIdentifier("docknet.about")
         menu.addItem(aboutItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: "Quit DockNet", action: Selector(("quitAction")), keyEquivalent: "q")
+        let quitItem = NSMenuItem(
+            title: "Quit DockNet",
+            action: #selector(StatusItemController.quitAction),
+            keyEquivalent: "q"
+        )
         quitItem.target = target
         quitItem.setAccessibilityIdentifier("docknet.quit")
         menu.addItem(quitItem)
@@ -110,7 +126,7 @@ public enum CompactMenuBuilder {
         // 3. Preferences Section
         let notifyItem = NSMenuItem(
             title: "Notify on connection changes",
-            action: Selector(("toggleNotificationsAction")),
+            action: #selector(StatusItemController.toggleNotificationsAction),
             keyEquivalent: ""
         )
         notifyItem.target = target
@@ -121,7 +137,7 @@ public enum CompactMenuBuilder {
         loginItemManager.refreshStatus()
         let loginItem = NSMenuItem(
             title: "Launch at Login",
-            action: Selector(("toggleLaunchAtLoginAction")),
+            action: #selector(StatusItemController.toggleLaunchAtLoginAction),
             keyEquivalent: ""
         )
         loginItem.target = target
@@ -137,7 +153,7 @@ public enum CompactMenuBuilder {
 
         let compactItem = NSMenuItem(
             title: "Compact",
-            action: Selector(("selectCompactStyleAction")),
+            action: #selector(StatusItemController.selectCompactStyleAction),
             keyEquivalent: ""
         )
         compactItem.target = target
@@ -147,7 +163,7 @@ public enum CompactMenuBuilder {
 
         let detailedItem = NSMenuItem(
             title: "Detailed",
-            action: Selector(("selectDetailedStyleAction")),
+            action: #selector(StatusItemController.selectDetailedStyleAction),
             keyEquivalent: ""
         )
         detailedItem.target = target
