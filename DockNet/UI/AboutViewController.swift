@@ -10,13 +10,14 @@ public final class AboutViewController: NSViewController {
         super.init(nibName: nil, bundle: nil)
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public override func loadView() {
+    override public func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 360))
-        self.view = root
+        view = root
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -29,7 +30,7 @@ public final class AboutViewController: NSViewController {
             stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 28),
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -24)
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -24),
         ])
 
         // 1. App Icon
@@ -43,7 +44,7 @@ public final class AboutViewController: NSViewController {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             iconView.widthAnchor.constraint(equalToConstant: 64),
-            iconView.heightAnchor.constraint(equalToConstant: 64)
+            iconView.heightAnchor.constraint(equalToConstant: 64),
         ])
         stack.addArrangedSubview(iconView)
 
@@ -80,7 +81,7 @@ public final class AboutViewController: NSViewController {
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            separator.widthAnchor.constraint(equalToConstant: 240)
+            separator.widthAnchor.constraint(equalToConstant: 240),
         ])
         stack.addArrangedSubview(separator)
 

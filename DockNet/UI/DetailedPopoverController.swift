@@ -8,7 +8,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
     private static let logger = Logger(subsystem: "com.andrewtryder.DockNet", category: "DetailedPopoverController")
 
     private let popover: NSPopover
-    private let statusViewController: DetailedStatusViewController
+    let statusViewController: DetailedStatusViewController
     private let networkMonitor: any NetworkMonitoringProtocol
 
     public var isShown: Bool {
@@ -23,7 +23,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
         onStyleChanged: @escaping (PresentationStyle) -> Void
     ) {
         self.networkMonitor = networkMonitor
-        self.popover = NSPopover()
+        popover = NSPopover()
 
         let vc = DetailedStatusViewController(
             networkMonitor: networkMonitor,
@@ -37,7 +37,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
                 }
             }
         )
-        self.statusViewController = vc
+        statusViewController = vc
 
         super.init()
 
@@ -86,7 +86,7 @@ public final class DetailedPopoverController: NSObject, NSPopoverDelegate {
 
     // MARK: - NSPopoverDelegate
 
-    public func popoverDidClose(_ notification: Notification) {
+    public func popoverDidClose(_: Notification) {
         lastClosedTimestamp = ProcessInfo.processInfo.systemUptime
         Self.logger.debug("Detailed popover closed")
     }

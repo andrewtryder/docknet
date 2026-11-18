@@ -1,9 +1,8 @@
-import XCTest
 @testable import DockNet
+import XCTest
 
 @MainActor
 final class PresentationPreferencesTests: XCTestCase {
-
     private var testDefaults: UserDefaults!
     private var suiteName: String!
 
@@ -20,27 +19,27 @@ final class PresentationPreferencesTests: XCTestCase {
         super.tearDown()
     }
 
-    // 1. PresentationStyle enum coverage
+    /// 1. PresentationStyle enum coverage
     func testPresentationStyleCases() {
         XCTAssertEqual(PresentationStyle.allCases.count, 2)
         XCTAssertEqual(PresentationStyle.compact.rawValue, "compact")
         XCTAssertEqual(PresentationStyle.detailed.rawValue, "detailed")
     }
 
-    // 2. Missing key in UserDefaults defaults to .compact
+    /// 2. Missing key in UserDefaults defaults to .compact
     func testDefaultPresentationStyleIsCompact() {
         let prefs = PresentationPreferences(defaults: testDefaults)
         XCTAssertEqual(prefs.style, .compact)
     }
 
-    // 3. Invalid or unknown string in UserDefaults falls back to .compact
+    /// 3. Invalid or unknown string in UserDefaults falls back to .compact
     func testInvalidStoredValueFallsBackToCompact() {
         testDefaults.set("unknown_mode_xyz", forKey: PresentationPreferences.userDefaultsKey)
         let prefs = PresentationPreferences(defaults: testDefaults)
         XCTAssertEqual(prefs.style, .compact)
     }
 
-    // 4. Storing .detailed persists properly
+    /// 4. Storing .detailed persists properly
     func testPersistingDetailedStyle() {
         let prefs = PresentationPreferences(defaults: testDefaults)
         prefs.style = .detailed
@@ -48,7 +47,7 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.style, .detailed)
     }
 
-    // 5. Storing .compact persists properly
+    /// 5. Storing .compact persists properly
     func testPersistingCompactStyle() {
         let prefs = PresentationPreferences(defaults: testDefaults)
         prefs.style = .detailed
@@ -59,7 +58,7 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.style, .compact)
     }
 
-    // 6. StatusItemController routes Compact vs Detailed correctly & creates popover lazily
+    /// 6. StatusItemController routes Compact vs Detailed correctly & creates popover lazily
     func testStatusItemControllerRoutingAndLazyCreation() {
         let mockMonitor = MockNetworkMonitor(scenario: "wifi")
         let notificationMgr = NotificationManager(
@@ -101,7 +100,43 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertNil(controller.statusItem.button?.action)
     }
 
-    // 7. DetailedStatusViewController correctly populates primary connection and other connections
+    func testDetailedStyleControlRoutesThroughCoordinator() {
+        let prefs = PresentationPreferences(defaults: testDefaults)
+        prefs.style = .compact
+        let controller = StatusItemController(
+            networkMonitor: MockNetworkMonitor(scenario: "wifi"),
+            notificationManager: NotificationManager(
+                scheduler: MockNotificationScheduler(status: .notDetermined),
+                userDefaults: testDefaults,
+                debounceInterval: 0
+            ),
+            loginItemManager: LoginItemManager(),
+            presentationPreferences: prefs
+        )
+        for _ in 0 ..< 2 {
+            controller.selectDetailedStyleAction()
+            XCTAssertNil(controller.statusItem.menu)
+            XCTAssertNotNil(controller.statusItem.button?.action)
+            controller.statusItem.button?.performClick(nil)
+            guard let popover = controller.detailedPopoverController,
+                  let control = popover.statusViewController.view
+                      .descendants(matching: "docknet.presentation.segmented").first as? NSSegmentedControl,
+                  let action = control.action
+            else {
+                XCTFail("Detailed style control was not created")
+                return
+            }
+            control.selectedSegment = 0
+            control.sendAction(action, to: control.target)
+            XCTAssertEqual(prefs.style, .compact)
+            XCTAssertEqual(PresentationPreferences(defaults: testDefaults).style, .compact)
+            XCTAssertNotNil(controller.statusItem.menu)
+            XCTAssertNil(controller.statusItem.button?.action)
+            XCTAssertFalse(popover.isShown)
+        }
+    }
+
+    /// 7. DetailedStatusViewController correctly populates primary connection and other connections
     func testDetailedStatusViewControllerPopulatesConnectionsWithoutDuplication() {
         let mockMonitor = MockNetworkMonitor(scenario: "oneEthernetReady")
         let notificationMgr = NotificationManager(
@@ -155,8 +190,8 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertTrue(vc.view.descendants(matching: "Tailscale").isEmpty)
     }
 
-    // 8. Switching style via callback persists and notifies
-    func testDetailedViewControllerStyleSwitch() {
+    /// 8. Switching style via callback persists and notifies
+    func testDetailedViewControllerStyleSwitch() throws {
         let mockMonitor = MockNetworkMonitor(scenario: "wifi")
         let notificationMgr = NotificationManager(
             scheduler: MockNotificationScheduler(status: .notDetermined),
@@ -190,14 +225,14 @@ final class PresentationPreferencesTests: XCTestCase {
 
         // Select compact
         seg.selectedSegment = 0
-        seg.sendAction(seg.action!, to: seg.target)
+        try seg.sendAction(XCTUnwrap(seg.action), to: seg.target)
 
-        XCTAssertEqual(prefs.style, .compact)
+        XCTAssertEqual(prefs.style, .detailed)
         XCTAssertEqual(switchedStyle, .compact)
     }
 
-    // 9. Compact menu builder adds Display Style submenu with proper checkmarks
-    func testCompactMenuBuilderDisplayStyleSubmenu() {
+    /// 9. Compact menu builder adds Display Style submenu with proper checkmarks
+    func testCompactMenuBuilderDisplayStyleSubmenu() throws {
         let mockMonitor = MockNetworkMonitor(scenario: "wifi")
         let notificationMgr = NotificationManager(
             scheduler: MockNotificationScheduler(status: .notDetermined),
@@ -224,7 +259,7 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertNotNil(displayStyleItem)
         XCTAssertNotNil(displayStyleItem?.submenu)
 
-        let submenu = displayStyleItem!.submenu!
+        let submenu = try XCTUnwrap(displayStyleItem?.submenu)
         let compactItem = submenu.items.first(where: { $0.title == "Compact" })
         let detailedItem = submenu.items.first(where: { $0.title == "Detailed" })
 
@@ -245,7 +280,7 @@ final class PresentationPreferencesTests: XCTestCase {
         )
 
         let updatedDisplayStyleItem = menu.items.first(where: { $0.title == "Display Style" })
-        let updatedSubmenu = updatedDisplayStyleItem!.submenu!
+        let updatedSubmenu = try XCTUnwrap(updatedDisplayStyleItem?.submenu)
         let updatedCompact = updatedSubmenu.items.first(where: { $0.title == "Compact" })
         let updatedDetailed = updatedSubmenu.items.first(where: { $0.title == "Detailed" })
 
@@ -253,7 +288,7 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertEqual(updatedDetailed?.state, .on)
     }
 
-    // 10. Single shared network state source across Compact and Detailed modes
+    /// 10. Single shared network state source across Compact and Detailed modes
     func testSharedNetworkMonitorState() {
         let mockMonitor = MockNetworkMonitor(scenario: "wifi")
         let notificationMgr = NotificationManager(
@@ -280,7 +315,7 @@ final class PresentationPreferencesTests: XCTestCase {
         XCTAssertEqual(controller.statusItem.button?.accessibilityLabel(), "DockNet — Ethernet primary")
     }
 
-    // 11. VPN / tunnel interfaces never appear in Compact NSMenu or Detailed UI
+    /// 11. VPN / tunnel interfaces never appear in Compact NSMenu or Detailed UI
     func testVPNFilteringAcrossBothPresentations() {
         let mockMonitor = MockNetworkMonitor(scenario: "vpnOverEthernet")
         let notificationMgr = NotificationManager(

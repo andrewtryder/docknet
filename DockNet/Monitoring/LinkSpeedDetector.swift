@@ -1,5 +1,5 @@
-import Foundation
 import Darwin
+import Foundation
 
 /// Protocol for detecting negotiated Ethernet link speed.
 public protocol LinkSpeedDetecting: Sendable {
@@ -11,16 +11,32 @@ public protocol LinkSpeedDetecting: Sendable {
 /// macro definitions like `_IOWR('i', 56, struct ifmediareq)`.
 public enum DarwinIfMediaCompatibility {
     /// `_IOWR('i', 56, struct ifmediareq)` ioctl command on 64-bit Darwin macOS.
-    public static let SIOCGIFMEDIA: UInt = 0xc02c6938
+    public static let SIOCGIFMEDIA: UInt = 0xC02C_6938
 
     /// `IFM_TYPE_MASK` (`IFM_NMASK`): mask for media type (bits 5-7).
-    public static let IFM_TYPE_MASK: Int32 = 0x000000e0
+    public static let typeMask: Int32 = 0x0000_00E0
     /// `IFM_ETHER`: Ethernet media type.
-    public static let IFM_ETHER: Int32 = 0x00000020
+    public static let ethernet: Int32 = 0x0000_0020
     /// `IFM_SUBTYPE_MASK` (`IFM_TMASK`): mask for media subtype.
-    public static let IFM_SUBTYPE_MASK: Int32 = 0x000f001f
+    public static let subtypeMask: Int32 = 0x000F_001F
     /// `IFM_FDX`: Full duplex flag (bit 20).
-    public static let IFM_FDX: Int32 = 0x00100000
+    public static let fullDuplex: Int32 = 0x0010_0000
+}
+
+/// Values are the decoded subtype numbers in <net/if_media.h>; values at or
+/// above 32 use IFM_X_SUBTYPE's extended-bit encoding in a media word.
+private enum EthernetMediaSubtype: Int32 {
+    case base10T = 3, base10Two = 4, base10Five = 5
+    case base100TX = 6, base100FX = 7, base100T4 = 8, base100VG = 9, base100T2 = 10
+    case base1000SX = 11, base10STP = 12, base10FL = 13
+    case base1000LX = 14, base1000CX = 15, base1000T = 16
+    case base10GSR = 18, base10GLR = 19, base10GCX4 = 20, base10GT = 21
+    case base2500T = 22, base5000T = 23, base1000CXSGMII = 24, base1000KX = 25
+    case base10GKX4 = 26, base10GKR = 27, base10GCR1 = 28, base10GER = 29
+    case base2500SX = 32, base10GTwinax = 33, base10GTwinaxLong = 34, base10GLRM = 35
+    case base2500KX = 36, base1000SGMII = 41, base10GSFI = 42, base100T = 52
+    case base10GAOC = 59, base100SGMII = 62, base2500X = 63
+    case base5000KR = 64, base5000KRS = 69, base5000KR1 = 70
 }
 
 /// Native macOS link speed detector using in-memory BSD socket ioctl (`SIOCGIFMEDIA`).
@@ -54,33 +70,35 @@ public struct LinkSpeedDetector: LinkSpeedDetecting {
     /// Pure formatting function translating a Darwin `ifmr.ifm_active` media word
     /// into a human-readable link speed string (e.g. "1 Gbps Full Duplex").
     public static func formatLinkSpeed(activeWord: Int32) -> String? {
-        let ifmType = activeWord & DarwinIfMediaCompatibility.IFM_TYPE_MASK
-        guard ifmType == DarwinIfMediaCompatibility.IFM_ETHER else {
+        let ifmType = activeWord & DarwinIfMediaCompatibility.typeMask
+        guard ifmType == DarwinIfMediaCompatibility.ethernet else {
             return nil
         }
 
-        let subtype = activeWord & DarwinIfMediaCompatibility.IFM_SUBTYPE_MASK
+        // Decode IFM_X_SUBTYPE from the SDK: extended bits occupy bits 16...19.
+        let subtype = (activeWord & 0x1F) | ((activeWord & 0x000F_0000) >> 11)
         let speedString: String?
-        switch subtype {
-        case 3, 4, 5, 12, 13:
+        switch EthernetMediaSubtype(rawValue: subtype) {
+        case .base10T, .base10Two, .base10Five, .base10STP, .base10FL:
             speedString = "10 Mbps"
-        case 6, 7, 8, 9, 10, 52:
+        case .base100TX, .base100FX, .base100T4, .base100VG, .base100T2, .base100T, .base100SGMII:
             speedString = "100 Mbps"
-        case 11, 14, 15, 16, 24, 25, 41:
+        case .base1000SX, .base1000LX, .base1000CX, .base1000T, .base1000CXSGMII, .base1000KX, .base1000SGMII:
             speedString = "1 Gbps"
-        case 22, 32, 36, 63:
+        case .base2500T, .base2500SX, .base2500KX, .base2500X:
             speedString = "2.5 Gbps"
-        case 23, 64, 69, 70:
+        case .base5000T, .base5000KR, .base5000KRS, .base5000KR1:
             speedString = "5 Gbps"
-        case 17, 18, 19, 20, 21, 26, 27, 28, 29, 33, 34, 35, 42:
+        case .base10GSR, .base10GLR, .base10GCX4, .base10GT, .base10GKX4, .base10GKR, .base10GCR1,
+             .base10GER, .base10GTwinax, .base10GTwinaxLong, .base10GLRM, .base10GSFI, .base10GAOC:
             speedString = "10 Gbps"
-        default:
+        case nil:
             speedString = nil
         }
 
         guard let speed = speedString else { return nil }
 
-        let isFullDuplex = (activeWord & DarwinIfMediaCompatibility.IFM_FDX) != 0
+        let isFullDuplex = (activeWord & DarwinIfMediaCompatibility.fullDuplex) != 0
         let duplex = isFullDuplex ? "Full Duplex" : "Half Duplex"
 
         return "\(speed) \(duplex)"

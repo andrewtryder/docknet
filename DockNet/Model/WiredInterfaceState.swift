@@ -2,7 +2,9 @@ import Foundation
 
 /// Represents the evaluated state of a physical wired Ethernet interface/service.
 public struct WiredInterfaceState: Equatable, Sendable, Identifiable {
-    public var id: String { serviceID }
+    public var id: String {
+        serviceID
+    }
 
     public let serviceID: String
     public let serviceName: String
@@ -92,6 +94,8 @@ public struct WiredInterfaceState: Equatable, Sendable, Identifiable {
             } else {
                 return "Ready · Available"
             }
+        case .configured:
+            return "Configured · No Gateway"
         case .obtainingDHCP:
             return "Obtaining DHCP"
         case .linkUp:

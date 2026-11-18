@@ -1,7 +1,6 @@
 import XCTest
 
 final class DockNetUITests: XCTestCase {
-
     private var currentApp: XCUIApplication?
 
     override func setUpWithError() throws {
@@ -48,11 +47,6 @@ final class DockNetUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-
-        let dir = URL(fileURLWithPath: "/Users/atr/code/docknet/build/screenshots")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fileURL = dir.appendingPathComponent("\(name).png")
-        try? screenshot.pngRepresentation.write(to: fileURL)
     }
 
     private func statusIcon(in window: XCUIElement) -> XCUIElement {
@@ -61,8 +55,8 @@ final class DockNetUITests: XCTestCase {
         return icon
     }
 
-    // 1. Wi-Fi-only state renders Wi-Fi as primary
-    func testWifiOnlyStateRendersWifiAsPrimary() throws {
+    /// 1. Wi-Fi-only state renders Wi-Fi as primary
+    func testWifiOnlyStateRendersWifiAsPrimary() {
         let app = launchApp(scenario: "wifi")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -81,8 +75,8 @@ final class DockNetUITests: XCTestCase {
         captureScreenshot(app: app, name: "wifi_primary")
     }
 
-    // 2. One healthy Ethernet interface renders Ethernet as primary and Wi-Fi as standby
-    func testOneHealthyEthernetRendersEthernetAsPrimary() throws {
+    /// 2. One healthy Ethernet interface renders Ethernet as primary and Wi-Fi as standby
+    func testOneHealthyEthernetRendersEthernetAsPrimary() {
         let app = launchApp(scenario: "oneEthernetReady")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -104,8 +98,8 @@ final class DockNetUITests: XCTestCase {
         captureScreenshot(app: app, name: "single_ethernet_primary")
     }
 
-    // 3. Ethernet link with no DHCP shows an acquiring/negotiating state and keeps Wi-Fi primary
-    func testEthernetLinkWithNoDHCPShowsNegotiating() throws {
+    /// 3. Ethernet link with no DHCP shows an acquiring/negotiating state and keeps Wi-Fi primary
+    func testEthernetLinkWithNoDHCPShowsNegotiating() {
         let app = launchApp(scenario: "ethernetDHCP")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -122,8 +116,8 @@ final class DockNetUITests: XCTestCase {
         XCTAssertTrue(textValue(of: en8Health).contains("Obtaining DHCP"))
     }
 
-    // 4. APIPA / degraded Ethernet shows degraded and keeps Wi-Fi primary
-    func testAPIPADegradedEthernetShowsDegraded() throws {
+    /// 4. APIPA / degraded Ethernet shows degraded and keeps Wi-Fi primary
+    func testAPIPADegradedEthernetShowsDegraded() {
         let app = launchApp(scenario: "ethernetDegraded")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -143,8 +137,8 @@ final class DockNetUITests: XCTestCase {
         captureScreenshot(app: app, name: "ethernet_degraded")
     }
 
-    // 5. Two wired interfaces, only one healthy, shows both but selects the healthy one
-    func testTwoWiredInterfacesOnlyOneHealthySelectsHealthy() throws {
+    /// 5. Two wired interfaces, only one healthy, shows both but selects the healthy one
+    func testTwoWiredInterfacesOnlyOneHealthySelectsHealthy() {
         let app = launchApp(scenario: "twoEthernetOneReady")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -162,8 +156,8 @@ final class DockNetUITests: XCTestCase {
         captureScreenshot(app: app, name: "two_ethernet_adapters_one_healthy")
     }
 
-    // 6. Two healthy wired interfaces respect supplied service order
-    func testTwoHealthyWiredInterfacesRespectServiceOrder() throws {
+    /// 6. Two healthy wired interfaces respect supplied service order
+    func testTwoHealthyWiredInterfacesRespectServiceOrder() {
         let app = launchApp(scenario: "twoEthernetBothReady")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -179,8 +173,8 @@ final class DockNetUITests: XCTestCase {
         captureScreenshot(app: app, name: "two_ethernet_both_ready")
     }
 
-    // 7. Ethernet disappears and UI transitions back to Wi-Fi
-    func testEthernetDisappearsTransitionsBackToWifi() throws {
+    /// 7. Ethernet disappears and UI transitions back to Wi-Fi
+    func testEthernetDisappearsTransitionsBackToWifi() {
         let app = launchApp(scenario: "ethernetLost")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -194,7 +188,7 @@ final class DockNetUITests: XCTestCase {
         XCTAssertTrue(textValue(of: en8Health).contains("Disconnected") || textValue(of: en8Health).contains("Cable Disconnected"))
     }
 
-    // 8. Dynamic transition testing without terminating/relaunching DockNet
+    /// 8. Dynamic transition testing without terminating/relaunching DockNet
     func testDynamicTransitionsWithoutRelaunchingApp() throws {
         let tempStateFile = FileManager.default.temporaryDirectory.appendingPathComponent("docknet_dynamic_state.txt").path
         try "wifi".write(toFile: tempStateFile, atomically: true, encoding: .utf8)
@@ -234,8 +228,8 @@ final class DockNetUITests: XCTestCase {
         wait(for: [wifiExpectation], timeout: 5.0)
     }
 
-    // 9. Authoritative PrimaryInterface en6 with link speed and configured-only services
-    func testAuthoritativePrimaryEn6OverridesServiceOrder() throws {
+    /// 9. Authoritative PrimaryInterface en6 with link speed and configured-only services
+    func testAuthoritativePrimaryEn6OverridesServiceOrder() {
         let app = launchApp(scenario: "ethernetPrimaryEn6")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -275,8 +269,8 @@ final class DockNetUITests: XCTestCase {
         XCTAssertTrue(textValue(of: wifiHealth).contains("Standby"))
     }
 
-    // 10. Notification preference checkbox interaction
-    func testNotificationPreferenceCheckboxCanBeToggled() throws {
+    /// 10. Notification preference checkbox interaction
+    func testNotificationPreferenceCheckboxCanBeToggled() {
         let app = launchApp(scenario: "wifi")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -292,8 +286,8 @@ final class DockNetUITests: XCTestCase {
         XCTAssertTrue(loginToggle.waitForExistence(timeout: 5.0))
     }
 
-    // 11. About DockNet window presentation and elements
-    func testAboutWindowOpensAndPresentsAuthorAndGitHubLink() throws {
+    /// 11. About DockNet window presentation and elements
+    func testAboutWindowOpensAndPresentsAuthorAndGitHubLink() {
         let app = launchApp(scenario: "wifi")
         let hostWindow = app.windows["DockNet Test Host"]
         XCTAssertTrue(hostWindow.waitForExistence(timeout: 5.0))
@@ -336,8 +330,8 @@ final class DockNetUITests: XCTestCase {
         gitHubBtn.click()
     }
 
-    // 12. Refresh button triggers re-read
-    func testRefreshButtonCanBeClicked() throws {
+    /// 12. Refresh button triggers re-read
+    func testRefreshButtonCanBeClicked() {
         let app = launchApp(scenario: "wifi")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -350,7 +344,7 @@ final class DockNetUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5.0))
     }
 
-    // 13. Accessibility audit
+    /// 13. Accessibility audit
     func testAccessibilityAudit() throws {
         let app = launchApp(scenario: "twoEthernetBothReady")
         let window = app.windows["DockNet Test Host"]
@@ -359,7 +353,7 @@ final class DockNetUITests: XCTestCase {
         if #available(macOS 14.0, *) {
             do {
                 try app.performAccessibilityAudit(for: [.action, .contrast]) { _ in
-                    return true
+                    true
                 }
             } catch {
                 print("Accessibility audit report: \(error)")
@@ -367,8 +361,8 @@ final class DockNetUITests: XCTestCase {
         }
     }
 
-    // 14. VPN active over Ethernet keeps Ethernet as primary with zero VPN UI presence
-    func testVPNActiveKeepsEthernetAsPrimaryWithoutShowingVPN() throws {
+    /// 14. VPN active over Ethernet keeps Ethernet as primary with zero VPN UI presence
+    func testVPNActiveKeepsEthernetAsPrimaryWithoutShowingVPN() {
         let app = launchApp(scenario: "vpnOverEthernet")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -386,8 +380,8 @@ final class DockNetUITests: XCTestCase {
         XCTAssertFalse(window.staticTexts["VPN"].exists)
     }
 
-    // 15. VPN active over Wi-Fi keeps Wi-Fi as primary with zero VPN UI presence
-    func testVPNActiveKeepsWifiAsPrimaryWithoutShowingVPN() throws {
+    /// 15. VPN active over Wi-Fi keeps Wi-Fi as primary with zero VPN UI presence
+    func testVPNActiveKeepsWifiAsPrimaryWithoutShowingVPN() {
         let app = launchApp(scenario: "vpnOverWifi")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))
@@ -406,8 +400,8 @@ final class DockNetUITests: XCTestCase {
         XCTAssertFalse(window.staticTexts["VPN"].exists)
     }
 
-    // 16. Display Style selector is interactive and reflects selection
-    func testDisplayStyleSelectorIsInteractive() throws {
+    /// 16. Display Style selector is interactive and reflects selection
+    func testDisplayStyleSelectorIsInteractive() {
         let app = launchApp(scenario: "wifi")
         let window = app.windows["DockNet Test Host"]
         XCTAssertTrue(window.waitForExistence(timeout: 5.0))

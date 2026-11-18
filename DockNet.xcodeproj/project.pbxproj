@@ -34,6 +34,7 @@
 		94536EDF1D61D8E5FB4C272E /* AboutWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8CED0879344A058E63A3A4 /* AboutWindowController.swift */; };
 		9BBBBCDF83D5B7BCC4CE5F1A /* WiredInterfaceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C295C4F0D07A99D1041B84 /* WiredInterfaceState.swift */; };
 		A532C5AACF72882032141940 /* URLOpening.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDF7973348B40A2DE1BB4F4 /* URLOpening.swift */; };
+		A70D893CD84BC1572CF8FE77 /* SystemConfigurationMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092B05E8B6F02AF6678A05D9 /* SystemConfigurationMonitorTests.swift */; };
 		A9EC66AEF4FD9158D58FF77A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EB3FCAF8168059547B0604 /* AppDelegate.swift */; };
 		B67B2D97BFFEEE1078795FC5 /* PresentationPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB3F35569ACBE7EFCA52856 /* PresentationPreferencesTests.swift */; };
 		C603EC68E6CA40F8A0EC499F /* NetworkInterfaceInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F2B2931793D7718CCADB48 /* NetworkInterfaceInfo.swift */; };
@@ -68,6 +69,7 @@
 /* Begin PBXFileReference section */
 		036900C17E0017A4AB45E822 /* NetworkPhysicalTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPhysicalTransportTests.swift; sourceTree = "<group>"; };
 		05E105ADC289CF2331A6DA15 /* DetailedStatusViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatusViewController.swift; sourceTree = "<group>"; };
+		092B05E8B6F02AF6678A05D9 /* SystemConfigurationMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemConfigurationMonitorTests.swift; sourceTree = "<group>"; };
 		18D3AA79921792ECE3C3550B /* LinkSpeedDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkSpeedDetector.swift; sourceTree = "<group>"; };
 		20EB3FCAF8168059547B0604 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		22D8F8854527680E7764D04E /* DockNetNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockNetNotification.swift; sourceTree = "<group>"; };
@@ -195,6 +197,7 @@
 				2B81B8AAE8EF0E6A646ED2DF /* NetworkStateMachineTests.swift */,
 				FFD28AA7EF6981859B7E59F7 /* NetworkVPNNotificationTests.swift */,
 				CAB3F35569ACBE7EFCA52856 /* PresentationPreferencesTests.swift */,
+				092B05E8B6F02AF6678A05D9 /* SystemConfigurationMonitorTests.swift */,
 			);
 			path = DockNetTests;
 			sourceTree = "<group>";
@@ -400,6 +403,7 @@
 				CCD6C634C1696129ED5DE59B /* NetworkStateMachineTests.swift in Sources */,
 				4106D07F983C004C61E851BF /* NetworkVPNNotificationTests.swift in Sources */,
 				B67B2D97BFFEEE1078795FC5 /* PresentationPreferencesTests.swift in Sources */,
+				A70D893CD84BC1572CF8FE77 /* SystemConfigurationMonitorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -540,6 +544,7 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -624,6 +629,7 @@
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;

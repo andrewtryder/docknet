@@ -20,10 +20,13 @@ public enum EthernetHealthState: String, Codable, Equatable, Sendable, CustomStr
     /// Physical link is active, waiting for DHCP lease or IPv4 address assignment.
     case obtainingDHCP
 
+    /// IPv4 is configured, but no default gateway was reported.
+    case configured
+
     /// Physical link is active, valid non-self-assigned IPv4 address and gateway are present.
     case ready
 
-    /// Physical link is active, but configuration is invalid (e.g. 169.254.x.x link-local or missing gateway).
+    /// Physical link is active, but configuration is invalid (e.g. 169.254.x.x link-local).
     case degraded
 
     public var description: String {
@@ -40,6 +43,8 @@ public enum EthernetHealthState: String, Codable, Equatable, Sendable, CustomStr
             return "Link Detected"
         case .obtainingDHCP:
             return "Obtaining DHCP"
+        case .configured:
+            return "Configured · No Gateway"
         case .ready:
             return "Ready"
         case .degraded:
@@ -57,7 +62,7 @@ public enum EthernetHealthState: String, Codable, Equatable, Sendable, CustomStr
             return "cable.connector.slash"
         case .linkUp, .obtainingDHCP:
             return "cable.connector"
-        case .ready:
+        case .configured, .ready:
             return "cable.connector.horizontal"
         case .degraded:
             return "exclamationmark.triangle"

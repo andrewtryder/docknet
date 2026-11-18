@@ -19,6 +19,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public var notificationManager: NotificationManager!
     public var loginItemManager: LoginItemManager!
     public var statusItemController: StatusItemController?
+    private var isTerminating = false
     private var testWindow: NSWindow?
     private var testHostController: TestHostViewController?
 
@@ -80,8 +81,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Bind snapshot updates
         networkMonitor.onSnapshotUpdated = { [weak self] snapshot in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self, !self.isTerminating else { return }
                 self.notificationManager.processSnapshot(snapshot)
                 self.statusItemController?.updateSnapshot(snapshot)
                 self.testHostController?.update(with: snapshot)
@@ -147,6 +148,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationWillTerminate(_: Notification) {
         Self.logger.info("DockNet terminating")
+        isTerminating = true
         networkMonitor?.stopMonitoring()
     }
 }

@@ -1,4 +1,5 @@
 SHELL := /bin/bash
+.DEFAULT_GOAL := all
 PROJECT := DockNet.xcodeproj
 SCHEME := DockNet
 CONFIGURATION := Debug
@@ -12,7 +13,19 @@ INSTALLED_APP := $(INSTALL_DIR)/DockNet.app
 # Optional xcbeautify formatter
 BEAUTIFY := $(shell command -v xcbeautify 2> /dev/null)
 
-.PHONY: install-hooks all build release-build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
+.PHONY: tools lint format format-check install-hooks all build release-build test test-unit test-ui test-ui-live test-notification test-all clean install run diagnose watch live-status regenerate-project help
+
+tools:
+	@./scripts/install-quality-tools.sh
+
+lint: tools
+	@$(BUILD_DIR)/tools/bin/swiftlint lint --quiet DockNet DockNetTests DockNetUITests scripts
+
+format: tools
+	@$(BUILD_DIR)/tools/bin/swiftformat DockNet DockNetTests DockNetUITests scripts
+
+format-check: tools
+	@$(BUILD_DIR)/tools/bin/swiftformat DockNet DockNetTests DockNetUITests scripts --lint
 
 install-hooks:
 	@git config core.hooksPath .githooks
@@ -22,6 +35,11 @@ all: build
 
 help:
 	@echo "DockNet Build Targets:"
+	@echo "  make tools               - Install checksum-verified quality tools locally"
+	@echo "  make format              - Format Swift sources and tests"
+	@echo "  make format-check        - Check Swift formatting"
+	@echo "  make lint                - Run SwiftLint"
+	@echo "  make install-hooks       - Enable repository pre-commit hook"
 	@echo "  make build               - Build DockNet Debug configuration with xcodebuild"
 	@echo "  make release-build       - Build Apple Silicon (arm64) Release app, DMG, and checksum"
 	@echo "  make test                - Run unit tests with xcodebuild (same as test-unit)"
@@ -105,21 +123,13 @@ test-all:
 		-configuration $(CONFIGURATION) \
 		-destination '$(DESTINATION)' \
 		-derivedDataPath $(DERIVED_DATA) \
+		-only-testing:DockNetTests \
+		-only-testing:DockNetUITests/DockNetUITests \
 		test $(if $(BEAUTIFY),| xcbeautify)
 	@$(MAKE) export-screenshots
 
 export-screenshots:
-	@mkdir -p $(BUILD_DIR)/screenshots
-	@LATEST_RESULT=$$(find $(DERIVED_DATA)/Logs/Test -name "*.xcresult" 2>/dev/null | tail -n 1); \
-	if [ -n "$$LATEST_RESULT" ]; then \
-		xcrun xcresulttool export attachments --path "$$LATEST_RESULT" --output-path $(BUILD_DIR)/screenshots >/dev/null 2>&1 || true; \
-		if [ -f "$(BUILD_DIR)/screenshots/manifest.json" ]; then \
-			python3 -c 'import json, shutil, os; \
-			data = json.load(open("$(BUILD_DIR)/screenshots/manifest.json")); \
-			[shutil.copyfile(os.path.join("$(BUILD_DIR)/screenshots", a["exportedFileName"]), os.path.join("$(BUILD_DIR)/screenshots", (a["suggestedHumanReadableName"].split("_0_")[0] if "_0_" in a["suggestedHumanReadableName"] else a["suggestedHumanReadableName"].replace(".png", "")) + ".png")) for e in data for a in e.get("attachments", []) if os.path.exists(os.path.join("$(BUILD_DIR)/screenshots", a["exportedFileName"]))];' 2>/dev/null || true; \
-		fi; \
-		echo "Screenshots preserved in $(BUILD_DIR)/screenshots/"; \
-	fi
+	@./scripts/export-screenshots.sh "$(DERIVED_DATA)/Logs/Test" "$(BUILD_DIR)/screenshots"
 
 clean:
 	@echo "Cleaning local build artifacts..."
@@ -152,7 +162,7 @@ diagnose:
 	@./scripts/diagnose.sh
 
 regenerate-project:
-	@which xcodegen > /dev/null || (echo "xcodegen not found. Install via: brew install xcodegen" && exit 1)
+	@which xcodegen > /dev/null || (echo "xcodegen not found. See https://github.com/yonaskolb/XcodeGen for installation instructions" && exit 1)
 	@xcodegen generate
 	@sed -i '' 's/\(MARKETING_VERSION = [^;]*;\)/\1 \/\* x-release-please-version \*\//g' $(PROJECT)/project.pbxproj
 	@echo "Regenerated $(PROJECT)"

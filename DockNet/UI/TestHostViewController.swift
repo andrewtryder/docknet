@@ -37,13 +37,14 @@ public final class TestHostViewController: NSViewController {
         super.init(nibName: nil, bundle: nil)
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public override func loadView() {
+    override public func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 750))
-        self.view = root
+        view = root
 
         let scrollView = NSScrollView(frame: root.bounds)
         scrollView.autoresizingMask = [.width, .height]
@@ -61,10 +62,10 @@ public final class TestHostViewController: NSViewController {
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor, constant: 14),
             stack.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor, constant: -14)
+            stack.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor, constant: -14),
         ])
 
-        self.contentStack = stack
+        contentStack = stack
 
         // 1. Header
         let headerStack = NSStackView()
@@ -77,16 +78,16 @@ public final class TestHostViewController: NSViewController {
         icon.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             icon.widthAnchor.constraint(equalToConstant: 22),
-            icon.heightAnchor.constraint(equalToConstant: 22)
+            icon.heightAnchor.constraint(equalToConstant: 22),
         ])
-        self.iconView = icon
+        iconView = icon
         headerStack.addArrangedSubview(icon)
 
         let title = NSTextField(labelWithString: "DockNet")
         title.font = NSFont.boldSystemFont(ofSize: 14)
         title.setAccessibilityIdentifier("docknet.header.title")
         title.setAccessibilityLabel("DockNet Application")
-        self.headerTitle = title
+        headerTitle = title
         headerStack.addArrangedSubview(title)
 
         stack.addArrangedSubview(headerStack)
@@ -102,7 +103,7 @@ public final class TestHostViewController: NSViewController {
         primaryCard.orientation = .vertical
         primaryCard.alignment = .leading
         primaryCard.spacing = 4
-        self.primaryCardsContainer = primaryCard
+        primaryCardsContainer = primaryCard
         stack.addArrangedSubview(primaryCard)
 
         stack.addArrangedSubview(makeSeparator())
@@ -117,22 +118,28 @@ public final class TestHostViewController: NSViewController {
         otherContainer.orientation = .vertical
         otherContainer.alignment = .leading
         otherContainer.spacing = 4
-        self.otherConnectionsContainer = otherContainer
+        otherConnectionsContainer = otherContainer
         stack.addArrangedSubview(otherContainer)
 
         stack.addArrangedSubview(makeSeparator())
 
+        addPreferencesAndActions(to: stack)
+
+        update(with: networkMonitor.currentSnapshot)
+    }
+
+    private func addPreferencesAndActions(to stack: NSStackView) {
         // 4. Preferences & Toggles
         let notifyBtn = NSButton(checkboxWithTitle: "Notify on connection changes", target: self, action: #selector(toggleNotifications))
         notifyBtn.setAccessibilityIdentifier("docknet.notifications")
         notifyBtn.state = notificationManager.isPreferenceEnabled ? .on : .off
-        self.notificationsCheckbox = notifyBtn
+        notificationsCheckbox = notifyBtn
         stack.addArrangedSubview(notifyBtn)
 
         let loginBtn = NSButton(checkboxWithTitle: "Launch at Login", target: self, action: #selector(toggleLogin))
         loginBtn.setAccessibilityIdentifier("docknet.launchAtLogin")
         loginBtn.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        self.launchAtLoginCheckbox = loginBtn
+        launchAtLoginCheckbox = loginBtn
         stack.addArrangedSubview(loginBtn)
 
         // Display Style row
@@ -153,7 +160,7 @@ public final class TestHostViewController: NSViewController {
         )
         segmented.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
         segmented.setAccessibilityIdentifier("docknet.presentation.segmented")
-        self.styleSegmented = segmented
+        styleSegmented = segmented
         styleRow.addArrangedSubview(segmented)
 
         let compactBtn = NSButton(title: "Compact", target: self, action: #selector(selectCompactStyle))
@@ -190,8 +197,6 @@ public final class TestHostViewController: NSViewController {
         quitBtn.bezelStyle = .rounded
         quitBtn.setAccessibilityIdentifier("docknet.quit")
         stack.addArrangedSubview(quitBtn)
-
-        update(with: networkMonitor.currentSnapshot)
     }
 
     public func update(with snapshot: NetworkSnapshot) {
@@ -279,6 +284,15 @@ public final class TestHostViewController: NSViewController {
             primaryCardsContainer.addArrangedSubview(ifaceLabel)
         }
 
+        updateOtherConnections(snapshot)
+
+        notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
+        loginItemManager.refreshStatus()
+        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
+        styleSegmented?.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
+    }
+
+    private func updateOtherConnections(_ snapshot: NetworkSnapshot) {
         // Other connections:
         let otherWired = snapshot.actualPrimaryIsWired
             ? snapshot.wiredInterfaces.filter { !$0.isPrimary }
@@ -333,11 +347,6 @@ public final class TestHostViewController: NSViewController {
 
             otherConnectionsContainer.addArrangedSubview(wifiRow)
         }
-
-        notificationsCheckbox.state = notificationManager.isPreferenceEnabled ? .on : .off
-        loginItemManager.refreshStatus()
-        launchAtLoginCheckbox.state = loginItemManager.isLaunchAtLoginEnabled ? .on : .off
-        styleSegmented?.selectedSegment = (presentationPreferences.style == .compact) ? 0 : 1
     }
 
     private func makeSeparator() -> NSBox {
@@ -345,7 +354,7 @@ public final class TestHostViewController: NSViewController {
         box.boxType = .separator
         box.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            box.widthAnchor.constraint(equalToConstant: 312)
+            box.widthAnchor.constraint(equalToConstant: 312),
         ])
         return box
     }

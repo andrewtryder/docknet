@@ -1,6 +1,6 @@
 import Foundation
-import SystemConfiguration
 import os
+import SystemConfiguration
 
 /// Discovers configured network services and macOS Network Service Order using SystemConfiguration APIs.
 public struct ServiceOrderDiscovery: Sendable {
@@ -51,7 +51,8 @@ public struct ServiceOrderDiscovery: Sendable {
             if let sdict = networkServicesDict[sid],
                let ifaceDict = sdict["Interface"] as? [String: Any],
                let isHidden = ifaceDict["HiddenConfiguration"] as? Bool,
-               isHidden {
+               isHidden
+            {
                 continue
             }
 
@@ -65,15 +66,12 @@ public struct ServiceOrderDiscovery: Sendable {
 
             // Identify Wi-Fi strictly by interface type (kSCNetworkInterfaceTypeIEEE80211)
             if ifaceType == (kSCNetworkInterfaceTypeIEEE80211 as String) {
-                if detectedWifi == nil || enabled {
-                    detectedWifi = DiscoveredService(
-                        serviceID: sid,
-                        serviceName: name,
-                        bsdName: bsdName,
-                        interfaceType: ifaceType,
-                        enabled: enabled,
-                        serviceOrder: orderIndex
-                    )
+                let candidate = DiscoveredService(
+                    serviceID: sid, serviceName: name, bsdName: bsdName,
+                    interfaceType: ifaceType, enabled: enabled, serviceOrder: orderIndex
+                )
+                if detectedWifi.map({ isPreferredWiFi(candidate, over: $0) }) ?? true {
+                    detectedWifi = candidate
                 }
                 continue
             }
@@ -98,7 +96,7 @@ public struct ServiceOrderDiscovery: Sendable {
         }
 
         // Sort discovered wired services according to macOS service order (lowest index = highest priority)
-        ethernetServices.sort { (lhs, rhs) -> Bool in
+        ethernetServices.sort { lhs, rhs -> Bool in
             let o1 = lhs.serviceOrder ?? Int.max
             let o2 = rhs.serviceOrder ?? Int.max
             if o1 != o2 {
@@ -112,6 +110,18 @@ public struct ServiceOrderDiscovery: Sendable {
             wifiService: detectedWifi,
             serviceOrderIDs: serviceOrder
         )
+    }
+
+    static func isPreferredWiFi(_ lhs: DiscoveredService, over rhs: DiscoveredService) -> Bool {
+        if lhs.enabled != rhs.enabled {
+            return lhs.enabled
+        }
+        let leftOrder = lhs.serviceOrder ?? Int.max
+        let rightOrder = rhs.serviceOrder ?? Int.max
+        if leftOrder != rightOrder {
+            return leftOrder < rightOrder
+        }
+        return lhs.serviceID < rhs.serviceID
     }
 
     /// Determines if an interface is an internal, virtual, or non-wired interface.

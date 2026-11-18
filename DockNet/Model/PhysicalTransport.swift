@@ -6,7 +6,9 @@ public enum PhysicalTransportKind: String, Codable, Equatable, Sendable, CustomS
     case wifi = "Wi-Fi"
     case none = "None"
 
-    public var description: String { rawValue }
+    public var description: String {
+        rawValue
+    }
 }
 
 /// Represents the resolved underlying physical network transport.
@@ -33,24 +35,23 @@ public struct PhysicalTransport: Equatable, Sendable {
 }
 
 /// Pure domain resolver for identifying virtual/overlay interfaces and resolving
-/// the authoritative physical transport (Ethernet > Wi-Fi) regardless of active VPN tunnels.
+/// a physical transport, inferring the underlying connection when overlays hide it.
 public struct PhysicalTransportResolver: Sendable {
-
     /// Determines if a BSD interface name or service name represents an overlay, tunnel, or virtual interface.
     public static func isVirtualOrOverlay(bsdName: String, serviceName: String? = nil) -> Bool {
         let bsd = bsdName.lowercased()
 
         // Exclude classic virtual & tunnel BSD prefixes
         let excludedPrefixes = [
-            "utun",     // Userspace tunnels (WireGuard, Tailscale, OpenVPN, IPsec)
-            "ipsec",    // Native macOS IPsec tunnels
-            "ppp",      // Point-to-Point protocol tunnels
-            "gif",      // Generic IP-in-IP tunnels
-            "stf",      // 6to4 tunnel interfaces
-            "bridge",   // Software bridges (Thunderbolt Bridge, VM bridges)
-            "awdl",     // Apple Wireless Direct Link (AirDrop/AirPlay)
-            "llw",      // Low latency WLAN
-            "lo"        // Loopback (lo0)
+            "utun", // Userspace tunnels (WireGuard, Tailscale, OpenVPN, IPsec)
+            "ipsec", // Native macOS IPsec tunnels
+            "ppp", // Point-to-Point protocol tunnels
+            "gif", // Generic IP-in-IP tunnels
+            "stf", // 6to4 tunnel interfaces
+            "bridge", // Software bridges (Thunderbolt Bridge, VM bridges)
+            "awdl", // Apple Wireless Direct Link (AirDrop/AirPlay)
+            "llw", // Low latency WLAN
+            "lo", // Loopback (lo0)
         ]
 
         if excludedPrefixes.contains(where: { bsd.hasPrefix($0) }) {
@@ -65,7 +66,7 @@ public struct PhysicalTransportResolver: Sendable {
                 "tunnel",
                 "bridge",
                 "packet-tunnel",
-                "network extension"
+                "network extension",
             ]
             if overlayKeywords.contains(where: { name.contains($0) }) {
                 return true
@@ -75,7 +76,7 @@ public struct PhysicalTransportResolver: Sendable {
         return false
     }
 
-    /// Resolves the authoritative physical transport from the system primary interface,
+    /// Resolves a physical transport from the system primary interface,
     /// available wired Ethernet services, Wi-Fi, and the previous physical primary BSD.
     ///
     /// Order of evidence:
@@ -95,14 +96,14 @@ public struct PhysicalTransportResolver: Sendable {
     ) -> PhysicalTransport {
         // 1. Check if the system PrimaryInterface is a recognized physical interface
         if let systemPrimary = systemPrimaryInterface, !isVirtualOrOverlay(bsdName: systemPrimary, serviceName: systemPrimaryServiceName) {
-            if let matchingWired = wiredInterfaces.first(where: { $0.bsdName == systemPrimary && $0.isReady }) {
+            if let matchingWired = wiredInterfaces.first(where: { $0.bsdName == systemPrimary && $0.enabled && $0.isHardwarePresent && ($0.linkActive || $0.isReady) }) {
                 return PhysicalTransport(
                     kind: .ethernet,
                     bsdName: matchingWired.bsdName,
                     serviceName: matchingWired.serviceName,
                     ipv4Address: matchingWired.ipv4Address
                 )
-            } else if systemPrimary == wifi.bsdName && wifi.isLinkActive {
+            } else if systemPrimary == wifi.bsdName && wifi.enabled && wifi.isLinkActive {
                 return PhysicalTransport(
                     kind: .wifi,
                     bsdName: wifi.bsdName,
@@ -116,18 +117,25 @@ public struct PhysicalTransportResolver: Sendable {
         // Resolve the underlying physical transport using the specified order of evidence.
 
         let readyWired = wiredInterfaces
-            .filter { $0.enabled && $0.isReady }
-            .sorted { (lhs, rhs) -> Bool in
+            .filter { $0.enabled && ($0.isReady || ($0.linkActive && $0.ipv4Address != nil && $0.health != .degraded)) }
+            .sorted { lhs, rhs -> Bool in
                 let o1 = lhs.serviceOrder ?? Int.max
                 let o2 = rhs.serviceOrder ?? Int.max
-                if o1 != o2 { return o1 < o2 }
+                if o1 != o2 {
+                    return o1 < o2
+                }
                 return lhs.bsdName < rhs.bsdName
             }
 
         // Check last-known physical primary
         if let prevBSD = previousPhysicalPrimaryBSD {
             // Case A: Last-known was an Ethernet adapter
-            if let prevWired = wiredInterfaces.first(where: { $0.bsdName == prevBSD }), prevWired.isReady {
+            let retainsUsableEthernet: (WiredInterfaceState) -> Bool = {
+                $0.isReady || ($0.linkActive && $0.ipv4Address != nil && $0.health != .degraded)
+            }
+            if let prevWired = wiredInterfaces.first(where: { $0.bsdName == prevBSD }),
+               prevWired.enabled, retainsUsableEthernet(prevWired)
+            {
                 // Preserved! (Rule 1 & Rule 5)
                 return PhysicalTransport(
                     kind: .ethernet,
@@ -151,7 +159,7 @@ public struct PhysicalTransportResolver: Sendable {
                 }
 
                 // If no Ethernet is ready, preserve Wi-Fi
-                if wifi.isLinkActive {
+                if wifi.enabled && wifi.isLinkActive {
                     return PhysicalTransport(
                         kind: .wifi,
                         bsdName: wifi.bsdName,
@@ -173,7 +181,7 @@ public struct PhysicalTransportResolver: Sendable {
         }
 
         // Fallback: Wi-Fi
-        if wifi.isLinkActive {
+        if wifi.enabled && wifi.isLinkActive {
             return PhysicalTransport(
                 kind: .wifi,
                 bsdName: wifi.bsdName,

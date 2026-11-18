@@ -53,14 +53,11 @@ public enum StatusIconState: Hashable, Sendable {
     }
 }
 
-public final class StatusIconRenderer: @unchecked Sendable {
-    private static let lock = NSLock()
+@MainActor
+public final class StatusIconRenderer {
     private static var imageCache: [StatusIconState: NSImage] = [:]
 
     public static func image(for state: StatusIconState) -> NSImage {
-        lock.lock()
-        defer { lock.unlock() }
-
         if let cached = imageCache[state] {
             return cached
         }
@@ -144,7 +141,8 @@ public final class StatusIconRenderer: @unchecked Sendable {
 
     private static func drawTinted(glyph: NSImage, color: NSColor, in rect: NSRect) {
         guard let cgContext = NSGraphicsContext.current?.cgContext,
-              let cgImage = glyph.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+              let cgImage = glyph.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
             return
         }
         cgContext.saveGState()

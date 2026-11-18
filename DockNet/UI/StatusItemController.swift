@@ -28,13 +28,13 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         self.loginItemManager = loginItemManager
         self.presentationPreferences = presentationPreferences
 
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.menu = NSMenu()
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        menu = NSMenu()
 
         super.init()
 
-        self.menu.delegate = self
-        self.menu.autoenablesItems = false
+        menu.delegate = self
+        menu.autoenablesItems = false
 
         if let button = statusItem.button {
             button.setAccessibilityElement(true)
@@ -63,7 +63,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         switch style {
         case .compact:
             detailedPopoverController?.closePopover()
-            statusItem.menu = self.menu
+            statusItem.menu = menu
             if let button = statusItem.button {
                 button.target = nil
                 button.action = nil
@@ -79,7 +79,7 @@ public final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
-    @objc private func statusItemClicked(_ sender: Any?) {
+    @objc private func statusItemClicked(_: Any?) {
         guard let button = statusItem.button else { return }
 
         if detailedPopoverController == nil {

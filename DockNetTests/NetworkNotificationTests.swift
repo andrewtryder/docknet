@@ -1,4 +1,5 @@
 @testable import DockNet
+import UserNotifications
 import XCTest
 
 final class NetworkNotificationTests: XCTestCase {
@@ -14,6 +15,58 @@ final class NetworkNotificationTests: XCTestCase {
             subnetMasks: ["255.255.255.0"],
             router: "192.168.88.1"
         )
+    }
+
+    func testNewerTransitionInvalidatesAuthorizationWaitForOlderTransition() async throws {
+        let entered = expectation(description: "both authorization lookups started")
+        entered.expectedFulfillmentCount = 2
+        let scheduler = SuspendedAuthorizationScheduler(entered: entered)
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "test.docknet.\(UUID().uuidString)"))
+        let manager = NotificationManager(scheduler: scheduler, userDefaults: defaults, debounceInterval: 0)
+        manager.isPreferenceEnabled = true
+        let wifi = makeWifiInfo()
+        let wifiSnapshot = NetworkSnapshot(wiredInterfaces: [], wifi: wifi, primaryInterface: "en0")
+        manager.processSnapshot(wifiSnapshot)
+        let ethernet = WiredInterfaceState(serviceID: "en6", serviceName: "Ethernet", bsdName: "en6", health: .ready)
+        manager.processSnapshot(NetworkSnapshot(wiredInterfaces: [ethernet], wifi: wifi, primaryInterface: "en6"))
+        manager.processSnapshot(wifiSnapshot)
+        await fulfillment(of: [entered], timeout: 5)
+        await scheduler.resumeAuthorization()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let titles = await scheduler.sentTitles
+        XCTAssertEqual(titles, ["Switched to Wi-Fi"])
+    }
+
+    func testDisablingPreferenceWinsOverPendingEnableRequest() async throws {
+        let entered = expectation(description: "authorization lookup started")
+        let scheduler = SuspendedAuthorizationScheduler(entered: entered)
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "test.docknet.\(UUID().uuidString)"))
+        let manager = NotificationManager(scheduler: scheduler, userDefaults: defaults)
+        let enabling = Task { await manager.setPreferenceEnabled(true) }
+        await fulfillment(of: [entered], timeout: 5)
+        manager.isPreferenceEnabled = false
+        await scheduler.resumeAuthorization()
+        _ = await enabling.value
+        XCTAssertFalse(manager.isPreferenceEnabled)
+    }
+
+    func testDisablingNotificationsInvalidatesAwaitingAuthorization() async throws {
+        let entered = expectation(description: "authorization requested")
+        let scheduler = SuspendedAuthorizationScheduler(entered: entered)
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "test.docknet.\(UUID().uuidString)"))
+        let manager = NotificationManager(scheduler: scheduler, userDefaults: defaults, debounceInterval: 0)
+        manager.isPreferenceEnabled = true
+        let wifi = makeWifiInfo()
+        manager.processSnapshot(NetworkSnapshot(wiredInterfaces: [], wifi: wifi, primaryInterface: "en0"))
+        let ethernet = WiredInterfaceState(serviceID: "en6", serviceName: "Ethernet", bsdName: "en6", health: .ready)
+        manager.processSnapshot(NetworkSnapshot(wiredInterfaces: [ethernet], wifi: wifi, primaryInterface: "en6"))
+        await fulfillment(of: [entered], timeout: 5)
+        manager.isPreferenceEnabled = false
+        manager.isPreferenceEnabled = true
+        await scheduler.resumeAuthorization()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let sentCount = await scheduler.sentCount
+        XCTAssertEqual(sentCount, 0)
     }
 
     // MARK: - Notification Manager & Transition Tests
@@ -374,10 +427,43 @@ final class NetworkNotificationTests: XCTestCase {
     }
 
     /// 13. About View and URL Opening
-    func testAboutViewAndURLOpening() throws {
+    @MainActor func testAboutViewAndURLOpening() throws {
         let mockOpener = MockURLOpener()
         let targetURL = try XCTUnwrap(URL(string: "https://github.com/andrewtryder/docknet"))
         XCTAssertTrue(mockOpener.open(targetURL))
         XCTAssertEqual(mockOpener.lastOpenedURL?.absoluteString, "https://github.com/andrewtryder/docknet")
+    }
+}
+
+private actor SuspendedAuthorizationScheduler: NotificationScheduling {
+    let entered: XCTestExpectation
+    var continuations: [CheckedContinuation<UNAuthorizationStatus, Never>] = []
+    var sentTitles: [String] = []
+    var sentCount: Int {
+        sentTitles.count
+    }
+
+    init(entered: XCTestExpectation) {
+        self.entered = entered
+    }
+
+    func requestAuthorization() async -> Bool {
+        true
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+            entered.fulfill()
+        }
+    }
+
+    func resumeAuthorization() {
+        continuations.forEach { $0.resume(returning: .authorized) }
+        continuations.removeAll()
+    }
+
+    func send(_ notification: DockNetNotification) async {
+        sentTitles.append(notification.title)
     }
 }

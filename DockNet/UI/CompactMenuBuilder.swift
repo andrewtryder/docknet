@@ -3,7 +3,6 @@ import AppKit
 /// Builds the optimized, text-oriented AppKit NSMenu for DockNet's Compact presentation style.
 @MainActor
 public enum CompactMenuBuilder {
-
     public static func build(
         menu: NSMenu,
         snapshot: NetworkSnapshot,
@@ -77,6 +76,37 @@ public enum CompactMenuBuilder {
             menu.addItem(NSMenuItem.separator())
         }
 
+        addPreferences(menu: menu, notificationManager: notificationManager, loginItemManager: loginItemManager,
+                       presentationPreferences: presentationPreferences, target: target)
+
+        // 4. Actions Section
+        let refreshItem = NSMenuItem(title: "Refresh", action: Selector(("refreshAction")), keyEquivalent: "r")
+        refreshItem.target = target
+        refreshItem.setAccessibilityIdentifier("docknet.refresh")
+        menu.addItem(refreshItem)
+
+        let settingsItem = NSMenuItem(title: "Open Network Settings…", action: Selector(("openNetworkSettingsAction")), keyEquivalent: "")
+        settingsItem.target = target
+        settingsItem.setAccessibilityIdentifier("docknet.openSettings")
+        menu.addItem(settingsItem)
+
+        let aboutItem = NSMenuItem(title: "About DockNet…", action: Selector(("openAboutAction")), keyEquivalent: "")
+        aboutItem.target = target
+        aboutItem.setAccessibilityIdentifier("docknet.about")
+        menu.addItem(aboutItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Quit DockNet", action: Selector(("quitAction")), keyEquivalent: "q")
+        quitItem.target = target
+        quitItem.setAccessibilityIdentifier("docknet.quit")
+        menu.addItem(quitItem)
+    }
+
+    private static func addPreferences(menu: NSMenu, notificationManager: NotificationManager,
+                                       loginItemManager: LoginItemManager,
+                                       presentationPreferences: PresentationPreferences, target: AnyObject)
+    {
         // 3. Preferences Section
         let notifyItem = NSMenuItem(
             title: "Notify on connection changes",
@@ -131,28 +161,5 @@ public enum CompactMenuBuilder {
         menu.addItem(styleParentItem)
 
         menu.addItem(NSMenuItem.separator())
-
-        // 4. Actions Section
-        let refreshItem = NSMenuItem(title: "Refresh", action: Selector(("refreshAction")), keyEquivalent: "r")
-        refreshItem.target = target
-        refreshItem.setAccessibilityIdentifier("docknet.refresh")
-        menu.addItem(refreshItem)
-
-        let settingsItem = NSMenuItem(title: "Open Network Settings…", action: Selector(("openNetworkSettingsAction")), keyEquivalent: "")
-        settingsItem.target = target
-        settingsItem.setAccessibilityIdentifier("docknet.openSettings")
-        menu.addItem(settingsItem)
-
-        let aboutItem = NSMenuItem(title: "About DockNet…", action: Selector(("openAboutAction")), keyEquivalent: "")
-        aboutItem.target = target
-        aboutItem.setAccessibilityIdentifier("docknet.about")
-        menu.addItem(aboutItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: "Quit DockNet", action: Selector(("quitAction")), keyEquivalent: "q")
-        quitItem.target = target
-        quitItem.setAccessibilityIdentifier("docknet.quit")
-        menu.addItem(quitItem)
     }
 }

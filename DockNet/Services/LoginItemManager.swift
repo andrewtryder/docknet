@@ -1,6 +1,6 @@
 import Foundation
-import ServiceManagement
 import os
+import ServiceManagement
 
 /// Manages macOS Launch at Login via modern SMAppService (macOS 13.0+).
 @MainActor
@@ -49,11 +49,9 @@ public final class LoginItemManager {
                     try service.register()
                     Self.logger.info("SMAppService registered successfully")
                 }
-            } else {
-                if service.status == .enabled {
-                    try service.unregister()
-                    Self.logger.info("SMAppService unregistered successfully")
-                }
+            } else if service.status == .enabled {
+                try service.unregister()
+                Self.logger.info("SMAppService unregistered successfully")
             }
         } catch {
             Self.logger.error("Failed to update Launch at Login: \(error.localizedDescription, privacy: .public)")

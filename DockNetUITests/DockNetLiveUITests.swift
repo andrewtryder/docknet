@@ -1,13 +1,12 @@
 import XCTest
 
 final class DockNetLiveUITests: XCTestCase {
-
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
     /// Non-destructive observational smoke test against the live hardware and real SystemConfiguration monitor.
-    func testLiveNetworkEnvironmentSmokeTest() throws {
+    func testLiveNetworkEnvironmentSmokeTest() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--live-mode"]
         app.launch()
@@ -34,15 +33,9 @@ final class DockNetLiveUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        let dir = URL(fileURLWithPath: "/Users/atr/code/docknet/build/screenshots")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fileURL = dir.appendingPathComponent("live_hardware_state.png")
-        try? screenshot.pngRepresentation.write(to: fileURL)
-
         print("--- Live Smoke Test Observation ---")
         print("Observed Primary Connection: \(primaryText)")
         print("Observed Primary Details: \(ifaceText)")
-        print("Screenshot written to: \(fileURL.path)")
         print("-----------------------------------")
     }
 }

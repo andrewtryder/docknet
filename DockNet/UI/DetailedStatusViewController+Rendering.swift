@@ -10,7 +10,7 @@ extension DetailedStatusViewController {
         let tone: StatusIndicatorView.Tone
         switch active.health {
         case .ready: tone = .green
-        case .linkUp, .obtainingDHCP: tone = .orange
+        case .linkUp, .obtainingDHCP, .configured: tone = .orange
         case .degraded: tone = .red
         default: tone = .gray
         }
@@ -136,7 +136,7 @@ extension DetailedStatusViewController {
         let tone: StatusIndicatorView.Tone
         switch iface.health {
         case .ready: tone = .green
-        case .linkUp, .obtainingDHCP: tone = .orange
+        case .linkUp, .obtainingDHCP, .configured: tone = .orange
         case .degraded: tone = .red
         default: tone = .gray
         }

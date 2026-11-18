@@ -14,14 +14,34 @@ permissions:
 jobs:
   build-and-test:
     name: Build & Test
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Debug Application
-        run: make build
+      - name: Validate Xcode toolchain
+        run: |
+          xcodebuild -version
+          major=$(xcodebuild -version | awk '/^Xcode / { split($2, v, "."); print v[1] }')
+          test "$major" -ge 15
 
-      - name: Run Unit Tests
+      - name: Check formatting
+        run: make format-check
+
+      - name: Lint Swift
+        run: make lint
+
+      - name: Run unit tests
         run: make test-unit
+
+      - name: Run deterministic UI tests
+        run: make test-ui
+
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: build/screenshots/
+          if-no-files-found: ignore
