@@ -279,4 +279,29 @@ final class NetworkEdgeCaseTests: XCTestCase {
         XCTAssertTrue(ServiceOrderDiscovery.isExcludedInterface(name: "Apple Wireless Direct Link", bsdName: "awdl0", interfaceType: "Other"))
         XCTAssertFalse(ServiceOrderDiscovery.isExcludedInterface(name: "USB 10/100/1G/2.5G LAN", bsdName: "en6", interfaceType: "Ethernet"))
     }
+
+    func testEthernetUnderVPNWithConfiguredStatePreservesEthernetPrimary() {
+        let wifi = makeWifiInfo()
+        let en6Configured = WiredInterfaceState(
+            serviceID: "EN6-ID",
+            serviceName: "USB 10/100/1G/2.5G LAN",
+            bsdName: "en6",
+            enabled: true,
+            serviceOrder: 2,
+            linkActive: true,
+            ipv4Address: "192.168.88.160",
+            gateway: nil,
+            health: .configured
+        )
+
+        let resolved = PhysicalTransportResolver.resolve(
+            systemPrimaryInterface: "utun9",
+            systemPrimaryServiceName: "Tailscale",
+            wiredInterfaces: [en6Configured],
+            wifi: wifi,
+            previousPhysicalPrimaryBSD: "en6"
+        )
+        XCTAssertEqual(resolved.kind, .ethernet)
+        XCTAssertEqual(resolved.bsdName, "en6")
+    }
 }

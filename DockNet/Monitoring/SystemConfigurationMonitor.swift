@@ -124,6 +124,7 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
             "State:/Network/Interface/.*/Link" as CFString,
             "State:/Network/Interface/.*/IPv4" as CFString,
             "State:/Network/Interface/.*/IPv6" as CFString,
+            "State:/Network/Service/.*/IPv4" as CFString,
             "State:/Network/Global/IPv4" as CFString,
             "State:/Network/Global/IPv6" as CFString,
             "Setup:/Network/Service/.*" as CFString,
@@ -338,6 +339,21 @@ public final class SystemConfigurationMonitor: @unchecked Sendable {
                 }
                 if let interfaceRouter = ipv4Dict["Router"] as? String {
                     router = interfaceRouter
+                }
+            }
+        }
+
+        if router == nil, let sid = serviceID {
+            let serviceIPv4Key = "State:/Network/Service/\(sid)/IPv4" as CFString
+            if let serviceDict = SCDynamicStoreCopyValue(store, serviceIPv4Key) as? [String: Any] {
+                if let serviceRouter = serviceDict["Router"] as? String {
+                    router = serviceRouter
+                }
+                if ipv4Addresses.isEmpty, let serviceAddrs = serviceDict["Addresses"] as? [String] {
+                    ipv4Addresses = serviceAddrs
+                }
+                if subnetMasks.isEmpty, let serviceSubnets = serviceDict["SubnetMasks"] as? [String] {
+                    subnetMasks = serviceSubnets
                 }
             }
         }

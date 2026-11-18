@@ -117,7 +117,7 @@ public struct PhysicalTransportResolver: Sendable {
         // Resolve the underlying physical transport using the specified order of evidence.
 
         let readyWired = wiredInterfaces
-            .filter { $0.enabled && $0.isReady }
+            .filter { $0.enabled && ($0.isReady || ($0.linkActive && $0.ipv4Address != nil && $0.health != .degraded)) }
             .sorted { lhs, rhs -> Bool in
                 let o1 = lhs.serviceOrder ?? Int.max
                 let o2 = rhs.serviceOrder ?? Int.max
@@ -130,7 +130,12 @@ public struct PhysicalTransportResolver: Sendable {
         // Check last-known physical primary
         if let prevBSD = previousPhysicalPrimaryBSD {
             // Case A: Last-known was an Ethernet adapter
-            if let prevWired = wiredInterfaces.first(where: { $0.bsdName == prevBSD }), prevWired.enabled, prevWired.isReady {
+            let retainsUsableEthernet: (WiredInterfaceState) -> Bool = {
+                $0.isReady || ($0.linkActive && $0.ipv4Address != nil && $0.health != .degraded)
+            }
+            if let prevWired = wiredInterfaces.first(where: { $0.bsdName == prevBSD }),
+               prevWired.enabled, retainsUsableEthernet(prevWired)
+            {
                 // Preserved! (Rule 1 & Rule 5)
                 return PhysicalTransport(
                     kind: .ethernet,
